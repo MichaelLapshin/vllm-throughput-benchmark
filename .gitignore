@@ -1,5 +1,14 @@
+# Conda
+condaenv.*.requirements.txt
+
 # Caching
 __pycache__/
+
+# vLLM build files
+vllm/_version.py
+vllm/third_party/
+*.egg-info
+*.egg
 
 # Benchmarking output dirs
 results/

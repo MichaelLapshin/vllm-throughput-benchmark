@@ -1,0 +1,15 @@
+name: vllm_throughput_gpu
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - ccache
+  - pip
+  - pip:
+    - -r vllm/requirements/build/cuda.txt
+    - -r vllm/requirements/cuda.txt
+    - -r requirements.txt
+variables:
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_USE_PRECOMPILED: 1 # Don't recompile kernels

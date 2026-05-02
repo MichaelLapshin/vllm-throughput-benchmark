@@ -1,0 +1,18 @@
+name: vllm_throughput_cpu
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - ccache
+  - pip
+  - pip:
+    - -r vllm/requirements/build/cpu.txt
+    - -r vllm/requirements/cpu.txt
+    - -r requirements.txt
+variables:
+  VLLM_TARGET_DEVICE: cpu # Compile for the CPU
+  VLLM_PRECOMPILED_WHEEL_VARIANT: cpu
+  MAX_JOBS: 4 # Limit compilation jobs to avoid overloading
+  VLLM_USE_PRECOMPILED: 1 # Compile CPU build
+  PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu

@@ -8,39 +8,28 @@ This project is for benchmarking the throughput of vLLM on variouns systems (inc
 git clone --recurse-submodules git@github.com:MichaelLapshin/vllm-throughput-benchmark.git
 cd vllm-throughput-benchmark
 ```
-1. Setup python environment
+2. Setup conda environment
+    - CPU build
 ```
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+conda env create -f environment_cpu.yaml
+conda activate vllm_throughput_cpu
 ```
-1. Install caching (if `which ccache` returns nothing)
+    - GPU build
 ```
-apt install ccache
+conda env create -f environment_gpu.yaml
+conda activate vllm_throughput_gpu
 ```
-or 
+3. Install vLLM (environment variables are already set by conda)
+   - Note: Compiling would take a while (for the CPU build). Consider increasing the `MAX_JOBS` environment variable, as long as there is enough memory to support more concurrent jobs.
 ```
-conda install ccache
+cd vllm
+python setup.py install
+cd ..
+pip install -e ./vllm --no-build-isolation
+pip install -e ./vllm --no-cache-dir --force-reinstall
 ```
-2. Install the vLLM instance GPU editable mode
-```
-pip install -r vllm_gpu/requirements/common.txt
-pip install -r vllm_gpu/requirements/cuda.txt
-pip install -r vllm_gpu/requirements/build/cuda.txt
-VLLM_USE_PRECOMPILED=1 pip install -e vllm_gpu/
-```
-1. Install the vLLM instance CPU editable mode
-```
-pip install -r vllm_cpu/requirements/common.txt --torch-backend cpu --index-strategy unsafe-best-match
-pip install -r vllm_cpu/requirements/cpu.txt --torch-backend cpu --index-strategy unsafe-best-match
-pip install -r vllm_cpu/requirements/build/cpu.txt --torch-backend cpu --index-strategy unsafe-best-match
-VLLM_TARGET_DEVICE=cpu python vllm_cpu/setup.py install
-VLLM_USE_PRECOMPILED=1 VLLM_TARGET_DEVICE=cpu pip install -e vllm_cpu/
-```
-
 
 ## Running the Benchmark
 1. Review the benchmark parameters under `run_parameters.py`
 2. Run the program with `python run.py`
-3. Plot the results with `python plot.py`
+3. Plot the results with `python plot.py --name <results_dir_name>`

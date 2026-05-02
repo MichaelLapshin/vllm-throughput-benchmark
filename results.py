@@ -11,6 +11,7 @@ class Result:
     cpu_omp_threads_bind: List[int]
     num_warmup_samples: int
     num_samples: int
+    num_concurrent_requests: int
     num_input_tokens: int
     num_output_tokens: int
 
