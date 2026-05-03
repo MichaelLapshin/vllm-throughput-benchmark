@@ -1,0 +1,8 @@
+[submodule "vllm_cpu"]
+	path = vllm_cpu
+	url = git@github.com:vllm-project/vllm.git
+	branch = releases/v0.20.1
+[submodule "vllm_gpu"]
+	path = vllm_gpu
+	url = git@github.com:vllm-project/vllm.git
+	branch = releases/v0.20.1
