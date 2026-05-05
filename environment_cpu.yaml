@@ -7,12 +7,12 @@ dependencies:
   - ccache
   - pip
   - pip:
-    - -r vllm/requirements/build/cpu.txt
-    - -r vllm/requirements/cpu.txt
+    - -r vllm_cpu/requirements/build/cpu.txt
+    - -r vllm_cpu/requirements/cpu.txt
     - -r requirements.txt
 variables:
   VLLM_TARGET_DEVICE: cpu # Compile for the CPU
-  VLLM_PRECOMPILED_WHEEL_VARIANT: cpu
   MAX_JOBS: 4 # Limit compilation jobs to avoid overloading
-  VLLM_USE_PRECOMPILED: 1 # Compile CPU build
-  PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+  VLLM_USE_PRECOMPILED: 0 # Compile CPU build
+  PYTHONPATH: ./vllm_cpu # Declare library path
+  VLLM_CPU_KVCACHE_SPACE: 1 # GBs allocated for CPU KV cache

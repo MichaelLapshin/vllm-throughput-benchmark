@@ -1,6 +1,9 @@
 # Conda
 condaenv.*.requirements.txt
 
+# Environment
+.env
+
 # Caching
 __pycache__/
 

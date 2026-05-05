@@ -18,9 +18,5 @@ GPU_NUMBER = 0
 # Value of zero indicates greedy sampling
 VLLM_SAMPLING_TEMPERATURE = 0
 
-# Instance address
-VLLM_ADDRESS = "localhost:8000"
-PROCESS_CMDLINE_REGEX = "vllm serve"
-
 # Benchmarking
 BETWEEN_SAMPLE_DELAY_S = 0.5

@@ -2,9 +2,10 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import csv
+import time
+import asyncio
 from typing import List
-from dataclasses import dataclass, fields, asdict
-import sys
+from dataclasses import fields, asdict
 
 import run_parameters
 from run_parameters import (
@@ -21,12 +22,11 @@ from run_constants import (
     GPU_NUMBER,
     PROJECT_DIR, RESULTS_DIR,
 )
-from utils import hardware_util, metadata_util, process_util
+from utils import hardware_util, metadata_util
 from results import Result
 
-sys.path.insert(0, f'{PROJECT_DIR}/vllm')
 
-def benchmark_vllm_instance(
+async def benchmark_vllm_instance(
     model: str,
     cpu_omp_threads_bind = None,
 ) -> List[Result]:
@@ -35,21 +35,27 @@ def benchmark_vllm_instance(
     else:
         os.environ["VLLM_CPU_OMP_THREADS_BIND"] = cpu_omp_threads_bind    
 
-    from vllm import LLM, SamplingParams
-    llm = LLM(
-        # model=model,
-        model="Qwen/Qwen3-0.6B",
-        enable_prefix_caching=False,
-        # scheduler_cls=scheduler,
+    assert os.environ["PYTHONPATH"]
+
+    # Run the benchmark
+    from vllm import SamplingParams
+    from vllm.engine.async_llm_engine import AsyncLLMEngine
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    engine = AsyncLLMEngine.from_engine_args(
+        engine_args=AsyncEngineArgs(
+            model=model,
+            enable_prefix_caching=False,
+        )
     )
 
     samples: List[Result] = []
-    for _ in range(PARAM_NUM_WARMUP_SAMPLES + PARAM_NUM_SAMPLES):
-        for num_concurrent_requests in PARAM_NUM_CONCURRENT_REQUESTS:
+    for run_i in range(PARAM_NUM_WARMUP_SAMPLES + PARAM_NUM_SAMPLES):
+        is_warmup_run = (run_i < PARAM_NUM_WARMUP_SAMPLES)
+        for num_requests in PARAM_NUM_CONCURRENT_REQUESTS:
             for num_input_tokens in PARAM_NUM_INPUT_TOKENS:
                 # Create unique prompts for local test
                 prompt_token_ids_list = []
-                for ri in range(num_concurrent_requests):
+                for ri in range(num_requests):
                     prompt_token_ids_list.append(
                         [ri+i+1 for i in range(num_input_tokens)]
                     )
@@ -62,35 +68,69 @@ def benchmark_vllm_instance(
                         max_tokens=num_output_tokens,
                     )
 
-                    outputs = llm.generate(
-                        prompts=prompt_token_ids_list,
-                        sampling_params=sampling_params
-                    )
+                    async def run_request(req_id: str):
+                        start_time = time.perf_counter()
+                        time_to_token_s = []
+                        final_output = None
+                        async for output in engine.generate(
+                                prompt_token_ids_list[0], 
+                                sampling_params, 
+                                request_id=req_id
+                            ):
+                            this_token_time = time.perf_counter()
+                            time_to_token_s.append(this_token_time - start_time)
+                            final_output = output
+                        
+                        # extract metrics
+                        assert final_output.metrics is not None
+                        assert num_output_tokens == final_output.metrics.num_generation_tokens
+                        return (
+                            final_output.metrics.queued_ts,
+                            final_output.metrics.scheduled_ts, 
+                            final_output.metrics.first_token_ts,
+                            final_output.metrics.last_token_ts,
+                            time_to_token_s
+                        )               
 
-                    # Verify results
-                    assert len(outputs) == 1
-                    output = outputs[0]
-                    print(output.metrics)
+                    async def run_request_batch(batch_size):
+                        tasks = []
+                        for i in range(batch_size):
+                            tasks.append(asyncio.create_task(run_request(f"req_id-{i}")))
+                        results = await asyncio.gather(*tasks)
+                        return results
 
-                    # Gather results
-                    # TODO: read prefill_time_s and decode_token_times_s
-                    samples.append(Result(
-                        model=model,
-                        cpu_name=hardware_util.get_cpu_name(),
-                        gpu_name=hardware_util.get_gpu_name(GPU_NUMBER),
-                        run_on_cpu=RUN_ON_CPU,
-                        cpu_omp_threads_bind=process_util.thread_bind_str_to_list(cpu_omp_threads_bind)
-                            if cpu_omp_threads_bind is not None else [],
-                        num_warmup_samples=PARAM_NUM_WARMUP_SAMPLES,
-                        num_samples=PARAM_NUM_SAMPLES,
-                        num_concurrent_requests=num_concurrent_requests,
-                        num_input_tokens=num_output_tokens,
-                        num_output_tokens=num_output_tokens,
-                        prefill_time_s=0,
-                        decode_token_times_s=[],
-                    ))
+                    # Run batch of requests
+                    request_batch_uid = str(datetime.now(ZoneInfo('America/New_York')))
+                    results = await run_request_batch(num_requests)
+                    for queued_ts, scheduled_ts, first_token_ts, last_token_ts, time_to_token_s in results:
+                        # Gather results
+                        if not is_warmup_run:
+                            samples.append(Result(
+                                request_batch_uid=request_batch_uid,
+                                model=model,
+                                cpu_name=hardware_util.get_cpu_name(),
+                                gpu_name=hardware_util.get_gpu_name(GPU_NUMBER) if not RUN_ON_CPU else "",
+                                run_on_cpu=RUN_ON_CPU,
+                                cpu_omp_threads_bind=cpu_omp_threads_bind if cpu_omp_threads_bind is not None else "<no bind>",
+                                num_warmup_samples=PARAM_NUM_WARMUP_SAMPLES,
+                                num_samples=PARAM_NUM_SAMPLES,
+                                num_concurrent_requests=num_requests,
+                                num_input_tokens=num_input_tokens,
+                                num_output_tokens=num_output_tokens,
+                                # Metrics
+                                queued_ts=queued_ts,
+                                scheduled_ts=scheduled_ts,
+                                first_token_ts=first_token_ts,
+                                last_token_ts=last_token_ts,
+                                # Output
+                                time_to_token_s=time_to_token_s,
+                            ))
 
-    return samples[PARAM_NUM_WARMUP_SAMPLES:]
+    # Give time for the program to gracefully shutdown
+    del engine
+    time.sleep(3)
+
+    return samples
 
 def run_benchmarking():
     timestamp = datetime.now(ZoneInfo('America/New_York'))
@@ -103,21 +143,18 @@ def run_benchmarking():
     })
 
     samples: List[Result] = []
-
-    # Run on local GPU
     for model in PARAM_MODELS:
-        samples += benchmark_vllm_instance(
-            model=model,
-            cpu_omp_threads_bind=None,
-        )
-
-        # Run on local CPU
         if RUN_ON_CPU:
             for cpu_omp_threads_bind in PARAM_CPU_OMP_THREADS_BINDS:
-                samples += benchmark_vllm_instance(
+                samples += asyncio.run(benchmark_vllm_instance(
                     model=model,
                     cpu_omp_threads_bind=cpu_omp_threads_bind,
-                )
+                ))
+        else:
+            samples += asyncio.run(benchmark_vllm_instance(
+                model=model,
+                cpu_omp_threads_bind=None,
+            ))
 
     # Save
     with open(f"{results_dir}/data.csv", "w") as f:
