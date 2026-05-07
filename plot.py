@@ -20,7 +20,8 @@ def load_csv_data(results_name: str) -> List[Result]:
         for row in reader:
             for key in row:
                 if Result.__dataclass_fields__[key].type == bool:
-                    row[key] = bool(row[key])
+                    assert row[key] in ["True", "False"]
+                    row[key] = row[key] == "True"
                 elif Result.__dataclass_fields__[key].type == int:
                     row[key] = int(row[key])
                 elif Result.__dataclass_fields__[key].type == float:
