@@ -73,6 +73,8 @@ def plot_cpu_omp_threads_binds_ttft(output_dir: str, results: List[Result]):
 
         groups = defaultdict(list)
         for result in results:
+            if result.num_concurrent_requests != num_concurrent_requests:
+                continue
             groups[result.cpu_omp_threads_bind].append(result)
         for key in groups:
             groups[key].sort(key=lambda result: result.num_input_tokens)
@@ -117,6 +119,8 @@ def plot_cpu_omp_threads_binds_ttlt(output_dir, results):
 
         groups = defaultdict(list)
         for result in results:
+            if result.num_concurrent_requests != num_concurrent_requests:
+                continue
             if result.num_input_tokens != min_input_tokens:
                 continue
             groups[result.cpu_omp_threads_bind].append(result)

@@ -28,7 +28,7 @@ This project is for benchmarking the throughput of vLLM on variouns systems (inc
     cd ..
     pip install -e ./vllm_gpu --no-build-isolation
     ```
-3. (Optional) Set HuggingFace API key to benchmark gated models
+3. (Optional) Set HuggingFace API token to benchmark gated models
     ```
     echo "HF_TOKEN = \"<api_token>\"" > .env
     ```

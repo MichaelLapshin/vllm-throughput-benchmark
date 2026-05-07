@@ -41,6 +41,7 @@ async def benchmark_vllm_instance(
     from vllm import SamplingParams
     from vllm.engine.async_llm_engine import AsyncLLMEngine
     from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.inputs import TokensPrompt
     engine = AsyncLLMEngine.from_engine_args(
         engine_args=AsyncEngineArgs(
             model=model,
@@ -50,9 +51,12 @@ async def benchmark_vllm_instance(
 
     samples: List[Result] = []
     for run_i in range(PARAM_NUM_WARMUP_SAMPLES + PARAM_NUM_SAMPLES):
+        print(f"=== Run {run_i + 1}/{PARAM_NUM_WARMUP_SAMPLES + PARAM_NUM_SAMPLES} ===")
         is_warmup_run = (run_i < PARAM_NUM_WARMUP_SAMPLES)
         for num_requests in PARAM_NUM_CONCURRENT_REQUESTS:
+            print(f"Running {num_requests} requests")
             for num_input_tokens in PARAM_NUM_INPUT_TOKENS:
+                print(f"Running with {num_input_tokens} input tokens")
                 # Create unique prompts for local test
                 prompt_token_ids_list = []
                 for ri in range(num_requests):
@@ -68,12 +72,12 @@ async def benchmark_vllm_instance(
                         max_tokens=num_output_tokens,
                     )
 
-                    async def run_request(req_id: str):
+                    async def run_request(req_id: str, prompt_token_ids: List[int]):
                         start_time = time.perf_counter()
                         time_to_token_s = []
                         final_output = None
                         async for output in engine.generate(
-                                prompt_token_ids_list[0], 
+                                TokensPrompt(prompt_token_ids=prompt_token_ids),
                                 sampling_params, 
                                 request_id=req_id
                             ):
@@ -93,9 +97,12 @@ async def benchmark_vllm_instance(
                         )               
 
                     async def run_request_batch(batch_size):
+                        print(f"Running requests with batch size {batch_size}...")
                         tasks = []
                         for i in range(batch_size):
-                            tasks.append(asyncio.create_task(run_request(f"req_id-{i}")))
+                            tasks.append(asyncio.create_task(
+                                run_request(f"req_id-{i}", prompt_token_ids_list[i])
+                            ))
                         results = await asyncio.gather(*tasks)
                         return results
 
@@ -127,10 +134,17 @@ async def benchmark_vllm_instance(
                             ))
 
     # Give time for the program to gracefully shutdown
-    del engine
-    time.sleep(3)
-
+    print("Done. Shutting down...")
+    await asyncio.to_thread(engine.shutdown, timeout=None)
+    print("Shut down.")
     return samples
+
+def save_results(results_dir: str, results: List[Result]):
+    with open(f"{results_dir}/data.csv", "a") as f:
+        writer = csv.DictWriter(f, fieldnames=[f.name for f in fields(Result)])
+        if f.tell() == 0:
+            writer.writeheader()
+        writer.writerows([asdict(r) for r in results])
 
 def run_benchmarking():
     timestamp = datetime.now(ZoneInfo('America/New_York'))
@@ -142,25 +156,20 @@ def run_benchmarking():
         "parameters": {k: str(v) for k, v in vars(run_parameters).items() if k.isupper()}
     })
 
-    samples: List[Result] = []
     for model in PARAM_MODELS:
         if RUN_ON_CPU:
             for cpu_omp_threads_bind in PARAM_CPU_OMP_THREADS_BINDS:
-                samples += asyncio.run(benchmark_vllm_instance(
+                results = asyncio.run(benchmark_vllm_instance(
                     model=model,
                     cpu_omp_threads_bind=cpu_omp_threads_bind,
                 ))
+                save_results(results_dir, results)
         else:
-            samples += asyncio.run(benchmark_vllm_instance(
+            results = asyncio.run(benchmark_vllm_instance(
                 model=model,
                 cpu_omp_threads_bind=None,
             ))
-
-    # Save
-    with open(f"{results_dir}/data.csv", "w") as f:
-        writer = csv.DictWriter(f, fieldnames=[f.name for f in fields(Result)])
-        writer.writeheader()
-        writer.writerows([asdict(d) for d in samples])
+            save_results(results_dir, results)
 
 if __name__ == "__main__":
     run_benchmarking()
