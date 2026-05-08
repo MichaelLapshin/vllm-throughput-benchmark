@@ -6,6 +6,7 @@ from dacite import from_dict
 from collections import defaultdict
 import argparse
 import os
+from dataclasses import dataclass
 from ast import literal_eval
 
 from run_constants import RESULTS_DIR, PLOTS_DIR
@@ -44,10 +45,18 @@ def get_common_parameters(results: List[Result]):
     assert all(run_on_cpu == r.run_on_cpu for r in results)
     return model, cpu_name, gpu_name, run_on_cpu
 
-def plot_fitted_line(line, x, y):
+def plot_fitted_line(color, x, y) -> str:
+    """
+    Plot fitted line, return formula
+    """
     m, b = np.polyfit(x, y, 1)
-    plt.plot(x, [m * xv + b for xv in x], color=line.get_color(), linestyle=':')
-    plt.text(min(x), max(y), f"t = {m:.4f}n + {b:.4f}", fontsize=11, color=line.get_color())
+    plt.plot(x, [m * xv + b for xv in x], color=color, linestyle=':')
+    return f"{m:.4f}n + {b:.4f}"
+
+def get_poly_colour_no_alpha(poly):
+    r, g, b, _ = poly.get_facecolor()[0]
+    color_no_alpha = (r, g, b)
+    return color_no_alpha
 
 def format_multisample_data(x: list, y: list) -> Tuple:
     df = pd.DataFrame({'x': x, 'y': y})
@@ -86,13 +95,15 @@ def plot_cpu_omp_threads_binds_ttft(output_dir: str, results: List[Result]):
                 x.append(result.num_input_tokens)
                 y.append(result.time_to_token_s[0])
             x, mean, std = format_multisample_data(x, y)
-            line, = plt.plot(x, mean, label=cpu_omp_threads_bind, marker='o')
-            plt.fill_between(x, mean - std, mean + std, color=line.get_color(), alpha=0.2)
-            plot_fitted_line(line, x, mean)
+            
+            poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+            color = get_poly_colour_no_alpha(poly)
+            line_eq = plot_fitted_line(color, x, mean)
+            plt.plot(x, mean, label=f"({line_eq}) Bind: {cpu_omp_threads_bind}", marker='o', color=color)
 
         plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
         plt.title(
-            f"TTFT vs. CPU OMP Thread Bind\n" \
+            f"Request TTFT vs. CPU OMP Thread Bind\n" \
             f"CPU: {cpu_name}\n" \
             f"Model: {model}, Number of Concurrent Reqs: {num_concurrent_requests}"
         )
@@ -102,6 +113,7 @@ def plot_cpu_omp_threads_binds_ttft(output_dir: str, results: List[Result]):
         plt.legend()
         os.makedirs(output_dir, exist_ok=True)
         plt.savefig(f"{output_dir}/cpu_omp_threads_bind_ttft-{num_concurrent_requests}_reqs.png")
+        plt.close()
 
 def plot_cpu_omp_threads_binds_ttlt(output_dir, results):
     """
@@ -135,13 +147,15 @@ def plot_cpu_omp_threads_binds_ttlt(output_dir, results):
                     x.append(i+1)
                     y.append(result.time_to_token_s[i])
             x, mean, std = format_multisample_data(x, y)
-            line, = plt.plot(x, mean, label=cpu_omp_threads_bind, marker='o')
-            plt.fill_between(x, mean - std, mean + std, color=line.get_color(), alpha=0.2)
-            plot_fitted_line(line, x, mean)
+            
+            poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+            color = get_poly_colour_no_alpha(poly)
+            line_eq = plot_fitted_line(color, x, mean)
+            plt.plot(x, mean, label=f"({line_eq}) Bind: {cpu_omp_threads_bind}", marker='o', color=color)
 
         plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
         plt.title(
-            f"Time to Token vs. CPU OMP Thread Bind\n" \
+            f"Request Time to Token vs. CPU OMP Thread Bind\n" \
             f"CPU: {cpu_name}\n" \
             f"Model: {model},  Input Tokens: {min_input_tokens},  Concurrent Reqs: {num_concurrent_requests}"
         )
@@ -151,6 +165,7 @@ def plot_cpu_omp_threads_binds_ttlt(output_dir, results):
         plt.legend()
         os.makedirs(output_dir, exist_ok=True)
         plt.savefig(f"{output_dir}/cpu_omp_threads_bind_ttlt-{num_concurrent_requests}_reqs.png")
+        plt.close()
 
 def plot_ttft(output_dir, results):
     """
@@ -193,15 +208,16 @@ def plot_ttft(output_dir, results):
         for result in group:
             x.append(result.num_input_tokens)
             y.append(result.time_to_token_s[0])
-
         x, mean, std = format_multisample_data(x, y)
-        line, = plt.plot(x, mean, label=f"Num requests: {num_reqs}", marker='o')
-        plt.fill_between(x, mean - std, mean + std, color=line.get_color(), alpha=0.2)
-        plot_fitted_line(line, x, mean)
+        
+        poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+        color = get_poly_colour_no_alpha(poly)
+        line_eq = plot_fitted_line(color, x, mean)
+        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", marker='o', color=color)
 
     plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
     plt.title(
-        f"TTFT vs. Input Token Length\n" \
+        f"Request TTFT vs. Input Token Length\n" \
         f"CPU: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ""}" + "\n" \
         f"Model: {model}" + f"{f', (best results from) OMP Thread Binds: {best_omp_thread_binds}' if run_on_cpu else ""}"
     )
@@ -211,7 +227,7 @@ def plot_ttft(output_dir, results):
     plt.legend()
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(f"{output_dir}/ttft.png")
-
+    plt.close()
 
 def plot_ttlt(output_dir, results):
     """
@@ -258,15 +274,16 @@ def plot_ttlt(output_dir, results):
             for i in range(result.num_output_tokens):
                 x.append(i+1)
                 y.append(result.time_to_token_s[i])
-
         x, mean, std = format_multisample_data(x, y)
-        line, = plt.plot(x, mean, label=f"Num requests: {num_reqs}", marker='o')
-        plt.fill_between(x, mean - std, mean + std, color=line.get_color(), alpha=0.2)
-        plot_fitted_line(line, x, mean)
+        
+        poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+        color = get_poly_colour_no_alpha(poly)
+        line_eq = plot_fitted_line(color, x, mean)
+        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", marker='o', color=color)
     
     plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
     plt.title(
-        f"Time to Token vs. Output Token Length\n" \
+        f"Request Time to Token vs. Output Token Length\n" \
         f"CPU: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ""}" + "\n" \
         f"Input Tokens: {min_input_tokens}, Model: {model}" + f"{f', (best results from) OMP Thread Binds: {best_omp_thread_binds}' if run_on_cpu else ""}"
     )
@@ -276,6 +293,154 @@ def plot_ttlt(output_dir, results):
     plt.legend()
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(f"{output_dir}/ttlt.png")
+    plt.close()
+
+def plot_tbot(output_dir, results):
+    """
+    Plot time between output tokens.
+    For CPU-runs, the OMP thread bindings with the best top result is used.
+    """
+    model, cpu_name, gpu_name, run_on_cpu = get_common_parameters(results)
+
+    min_input_tokens = min([r.num_input_tokens for r in results])
+    results = list(filter(lambda r: r.num_input_tokens == min_input_tokens, results))
+
+    groups = defaultdict(list)
+    for result in results:
+        groups[result.num_concurrent_requests].append(result)
+
+    # Identify best OMP thread binds with the best times
+    best_ttft_omp_thread_bind_result: Dict[int, Dict[int, Result]] = {}
+    for num_concurrent_requests, group in groups.items():
+        if num_concurrent_requests not in best_ttft_omp_thread_bind_result:
+            best_ttft_omp_thread_bind_result[num_concurrent_requests] = {}
+
+        for result in group:
+            if result.num_output_tokens not in best_ttft_omp_thread_bind_result[num_concurrent_requests] or \
+            result.time_to_token_s[-1] < best_ttft_omp_thread_bind_result[num_concurrent_requests][result.num_output_tokens].time_to_token_s[-1]:
+                assert num_concurrent_requests == result.num_concurrent_requests
+                best_ttft_omp_thread_bind_result[num_concurrent_requests][result.num_output_tokens] = result
+    
+    # Filter groups to leave only the best times
+    best_omp_thread_binds = set()
+    for num_concurrent_requests, best_groups in best_ttft_omp_thread_bind_result.items():
+        for num_output_tokens, best_result in best_groups.items():
+            best_omp_thread_binds.add(best_result.cpu_omp_threads_bind)
+            groups[num_concurrent_requests] = list(filter(
+                lambda r: r.cpu_omp_threads_bind == best_result.cpu_omp_threads_bind or \
+                    r.num_output_tokens != num_output_tokens,
+                groups[num_concurrent_requests]
+            ))
+
+    # Plot the filtered groups
+    plt.figure(figsize=(10, 6))
+    for num_reqs, group in groups.items():
+        x, y = [], []
+        for result in group:
+            for i in range(1, result.num_output_tokens-1):
+                x.append(i+1)
+                if (i == 0): # prefill
+                    y.append(result.time_to_token_s[i])
+                else: # decode
+                    y.append(result.time_to_token_s[i] - result.time_to_token_s[i-1])
+        x, mean, std = format_multisample_data(x, y)
+        
+        poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+        color = get_poly_colour_no_alpha(poly)
+        line_eq = plot_fitted_line(color, x, mean)
+        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", marker='o', color=color)
+    
+    plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
+    plt.title(
+        f"Time Between Output Tokens vs. Output Token Length\n" \
+        f"CPU: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ""}" + "\n" \
+        f"Input Tokens: {min_input_tokens}, Model: {model}" + f"{f', (best results from) OMP Thread Binds: {best_omp_thread_binds}' if run_on_cpu else ""}"
+    )
+    plt.xlabel('Number of Output Tokens')
+    plt.ylabel('Time Since Last Token (seconds)')
+    plt.ylim(bottom=0)
+    plt.legend()
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(f"{output_dir}/tbot.png")
+    plt.close()
+
+def plot_request_scaling(output_dir, results):
+    """
+    Plot change in time between output tokens.
+    For CPU-runs, the OMP thread bindings with the best top result is used.
+    
+    TODO: this is wrong, it should plot scaling between num requests, so...
+    - num requests should be on x-axis
+    - num output tokens should be the lines...
+    """
+    model, cpu_name, gpu_name, run_on_cpu = get_common_parameters(results)
+
+    min_input_tokens = min([r.num_input_tokens for r in results])
+    results = list(filter(lambda r: r.num_input_tokens == min_input_tokens, results))
+
+    groups = defaultdict(list)
+    for result in results:
+        groups[result.num_concurrent_requests].append(result)
+
+    # Identify best OMP thread binds with the best times
+    best_ttft_omp_thread_bind_result: Dict[int, Dict[int, Result]] = {}
+    for num_concurrent_requests, group in groups.items():
+        if num_concurrent_requests not in best_ttft_omp_thread_bind_result:
+            best_ttft_omp_thread_bind_result[num_concurrent_requests] = {}
+
+        for result in group:
+            if result.num_output_tokens not in best_ttft_omp_thread_bind_result[num_concurrent_requests] or \
+            result.time_to_token_s[-1] < best_ttft_omp_thread_bind_result[num_concurrent_requests][result.num_output_tokens].time_to_token_s[-1]:
+                assert num_concurrent_requests == result.num_concurrent_requests
+                best_ttft_omp_thread_bind_result[num_concurrent_requests][result.num_output_tokens] = result
+    
+    # Filter groups to leave only the best times
+    best_omp_thread_binds = set()
+    for num_concurrent_requests, best_groups in best_ttft_omp_thread_bind_result.items():
+        for num_output_tokens, best_result in best_groups.items():
+            best_omp_thread_binds.add(best_result.cpu_omp_threads_bind)
+            groups[num_concurrent_requests] = list(filter(
+                lambda r: r.cpu_omp_threads_bind == best_result.cpu_omp_threads_bind or \
+                    r.num_output_tokens != num_output_tokens,
+                groups[num_concurrent_requests]
+            ))
+
+    # Gather points based on slope
+    max_tbot_diff = 0
+    data_points_x = []
+    data_points_y = []
+    for num_reqs, group in groups.items():
+        x, y = [], []
+        for result in group:
+            for i in range(1, result.num_output_tokens-1):
+                x.append(i+1)
+                if (i == 0): # prefill
+                    y.append(result.time_to_token_s[i])
+                else: # decode
+                    y.append(result.time_to_token_s[i] - result.time_to_token_s[i-1])
+        x, mean, _ = format_multisample_data(x, y)
+        m, b = np.polyfit(x, mean, 1)
+        max_tbot_diff = max(max_tbot_diff, m)
+        data_points_x.append(num_reqs)
+        data_points_y.append(b)
+
+    # Plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(data_points_x, data_points_y, marker='o')
+    plt.title(
+        f"Time Between Output Token vs. Number of Requests\n" \
+        f"(TBOT change less than {max_tbot_diff:.5f} between consecutive output tokens)\n" \
+        f"CPU: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ""}" + "\n" \
+        f"Input Tokens: {min_input_tokens}, Model: {model}" + f"{f', (best results from) OMP Thread Binds: {best_omp_thread_binds}' if run_on_cpu else ""}"
+    )
+    plt.subplots_adjust(top=0.85)
+    plt.xlabel('Number of Output Tokens')
+    plt.ylabel('Time Between Output Token (seconds)')
+    plt.ylim(bottom=0)
+    plt.legend()
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(f"{output_dir}/tbot_vs_num_requests.png")
+    plt.close()
 
 if __name__ == "__main__":
     # Load data
@@ -303,4 +468,5 @@ if __name__ == "__main__":
         plot_cpu_omp_threads_binds_ttlt(output_dir, model_results)
         plot_ttft(output_dir, model_results)
         plot_ttlt(output_dir, model_results)
-    
+        plot_tbot(output_dir, model_results)
+        plot_request_scaling(output_dir, model_results)

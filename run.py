@@ -97,7 +97,7 @@ async def benchmark_vllm_instance(
                         )               
 
                     async def run_request_batch(batch_size):
-                        print(f"Running requests with batch size {batch_size}...")
+                        print(f"Running requests with {num_output_tokens} output tokens and batch size {batch_size}...")
                         tasks = []
                         for i in range(batch_size):
                             tasks.append(asyncio.create_task(
