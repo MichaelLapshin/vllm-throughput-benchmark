@@ -15,4 +15,4 @@ variables:
   MAX_JOBS: 4 # Limit compilation jobs to avoid overloading
   VLLM_USE_PRECOMPILED: 0 # Compile CPU build
   PYTHONPATH: ./vllm_cpu # Declare library path
-  VLLM_CPU_KVCACHE_SPACE: 1 # GBs allocated for CPU KV cache
+  VLLM_CPU_KVCACHE_SPACE: 10 # GBs allocated for CPU KV cache

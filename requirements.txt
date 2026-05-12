@@ -5,3 +5,4 @@ numpy==2.2.6
 matplotlib==3.10.7
 pandas==3.0.2
 dotenv==0.9.9
+nvidia-ml-py==13.595
