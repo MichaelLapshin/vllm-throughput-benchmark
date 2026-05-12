@@ -5,6 +5,10 @@ channels:
 dependencies:
   - python=3.12
   - ccache
+  - gxx
+  - gxx_linux-64
+  - gcc_linux-64
+  - make
   - pip
   - pip:
     - -r vllm_cpu/requirements/build/cpu.txt
@@ -16,3 +20,4 @@ variables:
   VLLM_USE_PRECOMPILED: 0 # Compile CPU build
   PYTHONPATH: ./vllm_cpu # Declare library path
   VLLM_CPU_KVCACHE_SPACE: 10 # GBs allocated for CPU KV cache
+  LD_PRELOAD: $CONDA_PREFIX/lib/libtcmalloc.so:$CONDA_PREFIX/lib/libiomp5.so:$LD_PRELOAD

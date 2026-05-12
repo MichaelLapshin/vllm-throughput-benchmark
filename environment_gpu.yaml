@@ -5,6 +5,12 @@ channels:
 dependencies:
   - python=3.12
   - ccache
+  - gxx
+  - gxx_linux-64
+  - gcc_linux-64
+  - make
+  - gperftools
+  - intel-openmp
   - pip
   - pip:
     - -r vllm_gpu/requirements/build/cuda.txt
@@ -14,3 +20,4 @@ variables:
   VLLM_TARGET_DEVICE: cuda
   VLLM_USE_PRECOMPILED: 1 # Don't recompile kernels
   PYTHONPATH: ./vllm_gpu # Declare library path
+  LD_PRELOAD: $CONDA_PREFIX/lib/libtcmalloc.so:$CONDA_PREFIX/lib/libiomp5.so:$LD_PRELOAD
