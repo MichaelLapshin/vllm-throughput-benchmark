@@ -9,6 +9,8 @@ dependencies:
   - gxx_linux-64
   - gcc_linux-64
   - make
+  - gperftools
+  - intel-openmp
   - pip
   - pip:
     - -r vllm_cpu/requirements/build/cpu.txt

@@ -497,9 +497,9 @@ def plot_histogram_of_samples_times(output_dir: str, results: List[Result], meta
         data_to_plot,
         stacked=True,
         bins=50,
-        label=[f"Sample {s}" for s in unique_runs], # type: ignore
+        label=[f"Run {s}" for s in unique_runs], # type: ignore
     )
-    plt.title("Sample Times")
+    plt.title("Request Completion Times")
     plt.xlabel('Time (seconds)')
     plt.ylabel('Frequency')
     plt.ylim(bottom=0)
