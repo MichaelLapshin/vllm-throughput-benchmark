@@ -20,4 +20,4 @@ variables:
   VLLM_USE_PRECOMPILED: 0 # Compile CPU build
   PYTHONPATH: ./vllm_cpu # Declare library path
   VLLM_CPU_KVCACHE_SPACE: 10 # GBs allocated for CPU KV cache
-  LD_PRELOAD: $CONDA_PREFIX/lib/libtcmalloc.so:$CONDA_PREFIX/lib/libiomp5.so:$LD_PRELOAD
+  LD_PRELOAD: ${CONDA_PREFIX}/lib/libtcmalloc.so:${CONDA_PREFIX}/lib/libiomp5.so:${LD_PRELOAD}
