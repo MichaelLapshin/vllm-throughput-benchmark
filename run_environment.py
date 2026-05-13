@@ -27,3 +27,4 @@ TORCH_ENV = torch.__config__.show()
 TORCH_CPU_AVX = torch.backends.cpu.get_cpu_capability()
 
 # CPU
+CPU_AFFINITY = sorted(os.sched_getaffinity(0))
