@@ -402,10 +402,13 @@ def plot_request_scaling(output_dir: str, results: List[Result], metadata: dict)
 
     min_input_tokens = min([r.num_input_tokens for r in results])
     results = list(filter(lambda r: r.num_input_tokens == min_input_tokens, results))
+    
+    
     max_tbot_diff = 0
-
+    best_omp_thread_binds = set()
     def get_data_for_output_tokens(output_tokens):
         nonlocal max_tbot_diff
+        nonlocal best_omp_thread_binds
         filtered_results = list(filter(lambda r: r.num_output_tokens == output_tokens, results))
 
         groups = defaultdict(list)
@@ -425,7 +428,6 @@ def plot_request_scaling(output_dir: str, results: List[Result], metadata: dict)
                     best_ttft_omp_thread_bind_result[num_concurrent_requests][result.num_output_tokens] = result
         
         # Filter groups to leave only the best times
-        best_omp_thread_binds = set()
         for num_concurrent_requests, best_groups in best_ttft_omp_thread_bind_result.items():
             for num_output_tokens, best_result in best_groups.items():
                 best_omp_thread_binds.add(best_result.cpu_omp_threads_bind)

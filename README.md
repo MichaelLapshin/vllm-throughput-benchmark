@@ -40,9 +40,12 @@ This project is for benchmarking the throughput of vLLM on variouns systems (inc
     ```
 
 ## Running the Benchmark
-1. Review the benchmark parameters under `run_parameters.py`
-2. Run the program with `python run.py`
-3. Plot the results with `python plot.py --name <results_dir_name>`
+1. Run the program with `python run.py`
+    * Add `--help` to display a list of arguments. 
+2. Plot the results with `python plot.py --name <results_dir_name>`
+    * No argument defaults to plotting the latest results.
+
+__Slurm__: Use and modify the scripts in `slurm_scripts/` directory.
 
 ## Helpful Commands
 Restore git submodules:

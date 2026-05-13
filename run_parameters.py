@@ -4,18 +4,19 @@ This file defines paramters to use for benchmarking.
 
 import run_environment
 import argparse
-from typing import List
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--num-warmup-runs",
     type=int,
-    default=1
+    default=1,
+    help="Number of runs before starting to capture data."
 )
 parser.add_argument(
     "--num-runs",
     type=int,
-    default=3
+    default=3,
+    help="Number of runs. Used for computing sample deviation."
 )
 parser.add_argument(
     "--models",
@@ -24,22 +25,26 @@ parser.add_argument(
         "Qwen/Qwen3-0.6B",
         "JackFram/llama-68m",
         "deepseek-ai/deepseek-coder-1.3b-instruct",
-    ]
+    ],
+    help="List of models to benchmark."
 )
 parser.add_argument(
     "--num-concurrent-requests",
     nargs="+", type=int,
-    default=[1, 2, 4] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128]
+    default=[1, 2, 4] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128],
+    help="Variants of number of concurrent requests to benchmark."
 )
 parser.add_argument(
     "--num-input-tokens",
     nargs="+", type=int,
-    default=[1, 2, 4, 8, 16] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    default=[1, 2, 4, 8, 16] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128, 256],
+    help="Variants of number of input tokens to benchmark."
 )
 parser.add_argument(
     "--num-output-tokens",
     nargs="+", type=int,
-    default=[1, 16] if run_environment.RUN_ON_CPU else [1, 16, 512]
+    default=[1, 16] if run_environment.RUN_ON_CPU else [1, 16, 512],
+    help="Variants of number of output tokens to benchmark."
 )
 parser.add_argument(
     "--cpu-omp-threads-binds",
@@ -50,13 +55,14 @@ parser.add_argument(
         "0-5",
         "0-7",
         "0-15",
-    ]
+    ],
+    help="Variants of OMP threads binds to benchmark. Used only for CPU benchmarking."
 )
 parser.add_argument(
     "--max-sample-tokens",
     type=int,
     default=0,
-    help="Set the maximum number of tokens to benchmark for a sample. 0 means no restriction. Samples exceeding (num requests)x(input len + output_len) are skipped."
+    help="Maximum number of tokens to benchmark for a sample. 0 indicates no restriction. Samples exceeding (num requests)x(input len + output_len) are skipped."
 )
 args = parser.parse_args()
 
