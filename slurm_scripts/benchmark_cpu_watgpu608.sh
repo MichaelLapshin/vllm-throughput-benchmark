@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --mem=32G
 #SBATCH --sockets-per-node=1
-#SBATCH --cores-per-socket=32
 #SBATCH --threads-per-core=1
 #SBATCH --time=720
 #SBATCH --gpus=0
