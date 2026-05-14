@@ -37,13 +37,13 @@ parser.add_argument(
 parser.add_argument(
     "--num-input-tokens",
     nargs="+", type=int,
-    default=[1, 2, 4, 8, 16] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128, 256],
+    default=[1, 2, 4, 8, 16] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
     help="Variants of number of input tokens to benchmark."
 )
 parser.add_argument(
     "--num-output-tokens",
     nargs="+", type=int,
-    default=[1, 16] if run_environment.RUN_ON_CPU else [1, 16, 512],
+    default=[1, 16, 32, 64, 128, 256, 512] if run_environment.RUN_ON_CPU else [1, 16, 32, 64, 128, 256, 512],
     help="Variants of number of output tokens to benchmark."
 )
 parser.add_argument(

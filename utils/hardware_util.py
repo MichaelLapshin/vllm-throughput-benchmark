@@ -7,6 +7,12 @@ _cpu_name = None
 _gpu_names = {}
 _gpu_devices = {}
 
+def _get_gpu_device(gpu_number: int):
+    global _gpu_devices
+    if gpu_number not in _gpu_devices:
+        _gpu_devices[gpu_number] = nvmlDeviceGetHandleByIndex(gpu_number)
+    return _gpu_devices[gpu_number]
+
 def get_cpu_name() -> str:
     global _cpu_name
     if _cpu_name is None:
@@ -28,7 +34,5 @@ def get_cpu_cores_avg_temp() -> int:
     return -1 if not temps_sum else int(sum(temps_sum)/float(len(temps_sum)))
 
 def get_gpu_temp(gpu_number: int) -> int:
-    global _gpu_devices
-    if gpu_number not in _gpu_devices:
-        _gpu_devices[gpu_number] = nvmlDeviceGetHandleByIndex(gpu_number)
-    return nvmlDeviceGetTemperature(_gpu_devices[gpu_number], 0)
+    return nvmlDeviceGetTemperature(_get_gpu_device(gpu_number), 0)
+    
