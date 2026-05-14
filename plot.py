@@ -15,6 +15,8 @@ import numpy as np
 from run_constants import RESULTS_DIR, PLOTS_DIR
 from utils import metadata_util
 
+MARKERS = ['*', '^', 'P', 's', 'v', 'p']
+
 def load_metadata(results_name: str) -> dict:
     return metadata_util.load_metadata(f"{RESULTS_DIR}/{results_name}")
 
@@ -212,7 +214,6 @@ def plot_ttft(output_dir: str, results: List[Result], metadata: dict, prefill_on
 
     # Plot the filtered groups
     plt.figure(figsize=(10, 6))
-    markers = ['o', '*', '^', 'P', 's', 'v', 'p']
     for num_reqs, group in groups.items():
         if not group:
             continue
@@ -227,18 +228,18 @@ def plot_ttft(output_dir: str, results: List[Result], metadata: dict, prefill_on
         poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
         color = get_poly_colour_no_alpha(poly)
         line_eq = plot_fitted_line(color, x, mean)
-        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", color=color)
+        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", color=color, marker='o', ms=4)
 
         # Mark the results
         mark: Dict[int, str] = {}
         for result in group:
-            mark[result.num_input_tokens] = markers[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
+            mark[result.num_input_tokens] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
         for i in range(len(x)):
             plt.scatter(x[i], mean[i], marker=mark[x[i]], color=color, s=50)
 
     plt.gca().add_artist(
         plt.legend(
-            [plt.scatter([], [], marker=markers[i], color="black") for i in range(len(best_omp_thread_binds))],
+            [plt.scatter([], [], marker=MARKERS[i], color="black") for i in range(len(best_omp_thread_binds))],
             [f"Thread Bind: {best_omp_thread_binds[i]}" for i in range(len(best_omp_thread_binds))],
             loc='upper right'
         )
@@ -296,9 +297,11 @@ def plot_ttlt(output_dir: str, results: List[Result], metadata: dict):
                     r.num_output_tokens != num_output_tokens,
                 groups[num_concurrent_requests]
             ))
+    best_omp_thread_binds = sorted(list(best_omp_thread_binds))
 
     # Plot the filtered groups
     plt.figure(figsize=(10, 6))
+    mark: Dict[int, str] = {}
     for num_reqs, group in groups.items():
         x, y = [], []
         for result in group:
@@ -313,8 +316,23 @@ def plot_ttlt(output_dir: str, results: List[Result], metadata: dict):
         poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
         color = get_poly_colour_no_alpha(poly)
         line_eq = plot_fitted_line(color, x, mean)
-        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", marker='o', color=color)
+        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", color=color, marker='o', ms=4)
+
+        # Mark the results
+        for result in group:
+            mark[result.num_output_tokens] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
+        for i in range(len(x)):
+            if x[i] in mark:
+                plt.scatter(x[i], mean[i], marker=mark[x[i]], color=color, s=70)
     
+    plt.gca().add_artist(
+        plt.legend(
+            [plt.scatter([], [], marker=MARKERS[i], color="black") for i in range(len(best_omp_thread_binds))],
+            [f"Thread Bind: {best_omp_thread_binds[i]}" for i in range(len(best_omp_thread_binds))],
+            loc='upper right'
+        )
+    )
+
     plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
     plt.title(
         f"Request Time to Token vs. Output Token Length\n" \
@@ -368,9 +386,11 @@ def plot_tbot(output_dir: str, results: List[Result], metadata: dict):
                     r.num_output_tokens != num_output_tokens,
                 groups[num_concurrent_requests]
             ))
+    best_omp_thread_binds = sorted(list(best_omp_thread_binds))
 
     # Plot the filtered groups
     plt.figure(figsize=(10, 6))
+    mark: Dict[int, str] = {}
     for num_reqs, group in groups.items():
         x, y = [], []
         for result in group:
@@ -387,8 +407,23 @@ def plot_tbot(output_dir: str, results: List[Result], metadata: dict):
         poly = plt.fill_between(x, mean - std, mean + std, alpha=0.2)
         color = get_poly_colour_no_alpha(poly)
         line_eq = plot_fitted_line(color, x, mean)
-        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", marker='o', color=color)
+        plt.plot(x, mean, label=f"({line_eq}) Num requests: {num_reqs}", marker='o', ms=4, color=color)
     
+        # Mark the results
+        for result in group:
+            mark[result.num_output_tokens] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
+        for i in range(len(x)):
+            if x[i] in mark:
+                plt.scatter(x[i], mean[i], marker=mark[x[i]], color=color, s=70)
+    
+    plt.gca().add_artist(
+        plt.legend(
+            [plt.scatter([], [], marker=MARKERS[i], color="black") for i in range(len(best_omp_thread_binds))],
+            [f"Thread Bind: {best_omp_thread_binds[i]}" for i in range(len(best_omp_thread_binds))],
+            loc='upper right'
+        )
+    )
+
     plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
     plt.title(
         f"Time Between Output Tokens vs. Output Token Length\n" \
