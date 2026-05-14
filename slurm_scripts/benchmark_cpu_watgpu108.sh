@@ -10,11 +10,12 @@
 #SBATCH --ntasks-per-socket=1
 #SBATCH --cpus-per-task=48
 #SBATCH --mincpus=48
+#SBATCH --nodelist=watgpu108
 conda run -n vllm_throughput_cpu python run.py \
     --num-warmup-runs 1 \
     --num-runs 3 \
     --models Qwen/Qwen3-0.6B JackFram/llama-68m \
     --num-concurrent-requests 1 2 4 8 16 32 64 128 \
-    --num-input-tokens 1 2 4 8 16 32 \
+    --num-input-tokens 1 2 4 8 16 32 64 128 256 512 \
     --num-output-tokens 1 2 4 8 16 \
-    --cpu-omp-threads-binds 0-23 0-47 0-11,24-35 0-7
+    --cpu-omp-threads-binds 0-23 0-47 0-11 0-11,24-35

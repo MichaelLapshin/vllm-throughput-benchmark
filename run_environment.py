@@ -28,3 +28,8 @@ TORCH_CPU_AVX = torch.backends.cpu.get_cpu_capability()
 
 # CPU
 CPU_AFFINITY = sorted(os.sched_getaffinity(0))
+CPU_NUMA_NODES = {
+    int(d[4:]): open(f'/sys/devices/system/node/{d}/cpulist').read().strip()
+    for d in os.listdir('/sys/devices/system/node/')
+    if d.startswith('node')
+}
