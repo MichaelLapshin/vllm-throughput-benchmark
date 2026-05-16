@@ -2,7 +2,6 @@
 This file defines paramters to use for benchmarking.
 """
 
-import run_environment
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -22,37 +21,40 @@ parser.add_argument(
     "--models",
     nargs="+", type=str,
     default=[
-        "Qwen/Qwen3-0.6B",
         "JackFram/llama-68m",
+        "Qwen/Qwen3-0.6B",
         "deepseek-ai/deepseek-coder-1.3b-instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+        "Qwen/Qwen3-1.7B",
+        "Qwen/Qwen3-4B",
+        "Qwen/Qwen3-8B",
     ],
     help="List of models to benchmark."
 )
 parser.add_argument(
     "--num-concurrent-requests",
     nargs="+", type=int,
-    default=[1, 2, 4] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128],
+    default=[1, 2, 4, 8, 16, 32, 64, 128],
     help="Variants of number of concurrent requests to benchmark."
 )
 parser.add_argument(
     "--num-input-tokens",
     nargs="+", type=int,
-    default=[1, 2, 4, 8, 16] if run_environment.RUN_ON_CPU else [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
+    default=[1, 2, 4, 8, 16, 32, 64, 128, 256],
     help="Variants of number of input tokens to benchmark."
 )
 parser.add_argument(
     "--num-output-tokens",
     nargs="+", type=int,
-    default=[1, 16, 32, 64, 128, 256, 512] if run_environment.RUN_ON_CPU else [1, 16, 32, 64, 128, 256, 512],
+    default=[1, 2, 4, 8, 16, 32, 64, 128, 256],
     help="Variants of number of output tokens to benchmark."
 )
 parser.add_argument(
     "--cpu-omp-threads-binds",
     nargs="+", type=str,
     default=[
-        "0-3",
-        "0,2,4,6",
         "0-5",
+        "0-5,8-13",
         "0-7",
         "0-15",
     ],

@@ -12,9 +12,6 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = "results"
 PLOTS_DIR = "plots"
 
-# Assume that there is only one GPU (or that all GPUs are the same)
-GPU_NUMBER = 0
-
 # Value of zero indicates greedy sampling
 VLLM_SAMPLING_TEMPERATURE = 0
 

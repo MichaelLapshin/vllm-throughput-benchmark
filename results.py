@@ -2,13 +2,10 @@ from dataclasses import dataclass
 from typing import List
 
 @dataclass
-class Result:
+class RequestData:
     # Parameters
     request_batch_uid: str
     model: str
-    cpu_name: str
-    gpu_name: str 
-    run_on_cpu: bool
     cpu_omp_threads_bind: str
     num_warmup_runs: int
     num_runs: int
@@ -31,8 +28,9 @@ class Result:
 
     # Output
     time_to_token_s: List[float]
+    request_batch_energy_joules: int
 
     @staticmethod
-    def from_dict(data: dict) -> 'Result':
-        return Result(**data)
+    def from_dict(data: dict) -> 'RequestData':
+        return RequestData(**data)
     

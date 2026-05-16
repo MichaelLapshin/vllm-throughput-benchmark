@@ -7,7 +7,6 @@ import asyncio
 from typing import List
 from dataclasses import fields, asdict
 import gc
-from pynvml import *
 
 import torch
 if torch.cuda.is_available():
@@ -16,7 +15,7 @@ if torch.cuda.is_available():
 
 import run_environment
 from run_environment import (
-    RUN_ON_CPU,
+    RUN_ON_CPU, GPU_RUN_NUMBER
 )
 import run_parameters
 from run_parameters import (
@@ -30,17 +29,16 @@ from run_parameters import (
 import run_constants
 from run_constants import (
     VLLM_SAMPLING_TEMPERATURE,
-    GPU_NUMBER,
     PROJECT_DIR, RESULTS_DIR,
 )
-from utils import hardware_util, metadata_util
-from results import Result
+from utils import hardware_util, metadata_util, energy_util
+from results import RequestData
 
 async def benchmark_vllm_instance(
     model: str,
     cpu_omp_threads_bind,
     save_results_func,
-) -> List[Result]:
+):
     if cpu_omp_threads_bind is None:
         os.environ.pop('VLLM_CPU_OMP_THREADS_BIND', None)
     else:
@@ -72,9 +70,9 @@ async def benchmark_vllm_instance(
 
                 # Create unique prompts for local test
                 prompt_token_ids_list = []
-                for ri in range(num_requests):
+                for _ in range(num_requests):
                     prompt_token_ids_list.append(
-                        [ri+i+1 for i in range(num_input_tokens)]
+                        [i+1 for i in range(num_input_tokens)]
                     )
 
                 # Execute generation
@@ -127,21 +125,28 @@ async def benchmark_vllm_instance(
                     # Run batch of requests
                     request_batch_uid = str(datetime.now(ZoneInfo('America/New_York')))
                     gc.collect()
+
                     cpu_temp_before_run = hardware_util.get_cpu_cores_avg_temp()
-                    gpu_temp_before_run = hardware_util.get_gpu_temp(GPU_NUMBER) if not RUN_ON_CPU else -1
+                    gpu_temp_before_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
+                    time_start_s = time.time()
+                    
                     results = await run_request_batch(num_requests)
+                    
+                    time_end_s = time.time()
+                    try:
+                        request_batch_energy_joules = energy_util.get_energy_joules(time_start_s, time_end_s)
+                    except Exception:
+                        request_batch_energy_joules = -1 # dummy value
                     cpu_temp_after_run = hardware_util.get_cpu_cores_avg_temp()
-                    gpu_temp_after_run = hardware_util.get_gpu_temp(GPU_NUMBER) if not RUN_ON_CPU else -1
+                    gpu_temp_after_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
+
+                    # Save results to file
                     results_to_save = []
                     for queued_ts, scheduled_ts, first_token_ts, last_token_ts, time_to_token_s in results:
-                        # Gather results
                         if not is_warmup_run:
-                            results_to_save.append(Result(
+                            results_to_save.append(RequestData(
                                 request_batch_uid=request_batch_uid,
                                 model=model,
-                                cpu_name=hardware_util.get_cpu_name(),
-                                gpu_name=hardware_util.get_gpu_name(GPU_NUMBER) if not RUN_ON_CPU else "",
-                                run_on_cpu=RUN_ON_CPU,
                                 cpu_omp_threads_bind=cpu_omp_threads_bind if cpu_omp_threads_bind is not None else "<no bind>",
                                 num_warmup_runs=PARAM_NUM_WARMUP_RUNS,
                                 num_runs=PARAM_NUM_RUNS,
@@ -161,6 +166,7 @@ async def benchmark_vllm_instance(
                                 last_token_ts=last_token_ts,
                                 # Output
                                 time_to_token_s=time_to_token_s,
+                                request_batch_energy_joules=request_batch_energy_joules,
                             ))
                     for result in results_to_save:
                         save_results_func(result)
@@ -173,9 +179,9 @@ async def benchmark_vllm_instance(
 def save_results_func(results_dir: str):
     file_path = f"{results_dir}/data.csv"
     
-    def save_results(result: Result):
+    def save_results(result: RequestData):
         with open(file_path, "a") as f:
-            writer = csv.DictWriter(f, fieldnames=[f.name for f in fields(Result)])
+            writer = csv.DictWriter(f, fieldnames=[f.name for f in fields(RequestData)])
             if f.tell() == 0:
                 writer.writeheader()
             writer.writerow(asdict(result))
@@ -209,6 +215,6 @@ def run_benchmarking():
             ))
 
 if __name__ == "__main__":
-    nvmlInit()
+    hardware_util.initialize_nvml()
     run_benchmarking()
-    nvmlShutdown()
+    hardware_util.shutdown_nvml()
