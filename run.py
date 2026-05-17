@@ -15,7 +15,8 @@ if torch.cuda.is_available():
 
 import run_environment
 from run_environment import (
-    RUN_ON_CPU, GPU_RUN_NUMBER
+    RUN_ON_CPU, GPU_RUN_NUMBER,
+    CPU_NAME, GPU_NAME
 )
 import run_parameters
 from run_parameters import (
@@ -53,14 +54,18 @@ async def benchmark_vllm_instance(
     from vllm.inputs import TokensPrompt
     from request_batching import set_batch_count
 
-    engine = AsyncLLMEngine.from_engine_args(
-        engine_args=AsyncEngineArgs(
-            model=model,
-            enable_prefix_caching=False,
-            max_model_len=max(PARAM_NUM_INPUT_TOKENS) + max(PARAM_NUM_OUTPUT_TOKENS),
-            max_num_seqs=max(PARAM_NUM_CONCURRENT_REQUESTS),
+    try:
+        engine = AsyncLLMEngine.from_engine_args(
+            engine_args=AsyncEngineArgs(
+                model=model,
+                enable_prefix_caching=False,
+                max_model_len=max(PARAM_NUM_INPUT_TOKENS) + max(PARAM_NUM_OUTPUT_TOKENS),
+                max_num_seqs=max(PARAM_NUM_CONCURRENT_REQUESTS),
+            )
         )
-    )
+    except Exception:
+        print(f"WARNING: Failed to launch model `{model}` on {CPU_NAME if RUN_ON_CPU else GPU_NAME}")
+        return
 
     for run_i in range(PARAM_NUM_WARMUP_RUNS + PARAM_NUM_RUNS):
         print(f"=== Run {run_i + 1}/{PARAM_NUM_WARMUP_RUNS + PARAM_NUM_RUNS} ===")
@@ -117,7 +122,7 @@ async def benchmark_vllm_instance(
                     async def run_request_batch(batch_size):
                         print(f"Running {batch_size} requests with {num_output_tokens} output tokens...")
                         set_batch_count(batch_size)
-                        
+
                         tasks = []
                         for i in range(batch_size):
                             tasks.append(asyncio.create_task(
