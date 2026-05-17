@@ -450,6 +450,7 @@ def plot_energy_vs_num_reqs(output_dir: str, results: List[RequestData], metadat
     Plot energy per output/input token. (multiple lines for different request input/output lengths)
     """
     cpu_name, gpu_name, run_on_cpu, _ = plot_utils.get_common_metadata(results, metadata)
+    model = plot_utils.get_model(results)
 
     if prefill:
         results = list(filter(lambda r: r.num_output_tokens == 1, results))
@@ -470,7 +471,6 @@ def plot_energy_vs_num_reqs(output_dir: str, results: List[RequestData], metadat
 
     # Plot
     plt.figure(figsize=(10, 6))
-    mark = {}
     for num_tokens, group in groups.items():
         x, y = [], []
         for result in group:
@@ -493,8 +493,9 @@ def plot_energy_vs_num_reqs(output_dir: str, results: List[RequestData], metadat
         )
 
         # Mark the results
+        mark = {}
         for result in group:
-            mark[result.num_output_tokens] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
+            mark[result.num_concurrent_requests] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
         for i in range(len(x)):
             if x[i] in mark:
                 plt.scatter(x[i], mean[i], marker=mark[x[i]], color=color, s=70)
@@ -512,7 +513,7 @@ def plot_energy_vs_num_reqs(output_dir: str, results: List[RequestData], metadat
         f"Model: {model}"
     )
     plt.xlabel('Number of Requests')
-    plt.ylabel('Energy (joules)')
+    plt.ylabel('Joules Per Token')
     plt.ylim(bottom=0)
     plt.legend()
     plt.savefig(f"{output_dir}/energy_per_{'input' if prefill else 'output'}_token.png")

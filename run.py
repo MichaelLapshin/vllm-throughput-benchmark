@@ -51,6 +51,8 @@ async def benchmark_vllm_instance(
     from vllm.engine.async_llm_engine import AsyncLLMEngine
     from vllm.engine.arg_utils import AsyncEngineArgs
     from vllm.inputs import TokensPrompt
+    from request_batching import set_batch_count
+
     engine = AsyncLLMEngine.from_engine_args(
         engine_args=AsyncEngineArgs(
             model=model,
@@ -114,6 +116,8 @@ async def benchmark_vllm_instance(
 
                     async def run_request_batch(batch_size):
                         print(f"Running {batch_size} requests with {num_output_tokens} output tokens...")
+                        set_batch_count(batch_size)
+                        
                         tasks = []
                         for i in range(batch_size):
                             tasks.append(asyncio.create_task(
