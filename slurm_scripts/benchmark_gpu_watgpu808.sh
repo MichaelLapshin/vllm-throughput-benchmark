@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH --output=slurm_gpu_watgpu808.out
 #SBATCH --mem=32G
 #SBATCH --sockets-per-node=1
 #SBATCH --threads-per-core=2
