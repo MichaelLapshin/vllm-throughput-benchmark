@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 #SBATCH --sockets-per-node=1
 #SBATCH --cores-per-socket=24
 #SBATCH --threads-per-core=2
@@ -14,8 +14,8 @@
 conda run -n vllm_throughput_cpu python run.py \
     --num-warmup-runs 1 \
     --num-runs 3 \
-    --models Qwen/Qwen3-0.6B JackFram/llama-68m \
+    --models JackFram/llama-68m Qwen/Qwen3-0.6B deepseek-ai/deepseek-coder-1.3b-instruct deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B Qwen/Qwen3-1.7B Qwen/Qwen3-4B Qwen/Qwen3-8B Qwen/Qwen3-14B Qwen/Qwen3-32B \
     --num-concurrent-requests 1 2 4 8 16 32 64 128 \
-    --num-input-tokens 1 2 4 8 16 32 64 128 256 512 \
-    --num-output-tokens 1 2 4 8 16 \
+    --num-input-tokens 1 2 4 8 16 32 64 128 256 \
+    --num-output-tokens 1 2 4 8 16 32 64 128 256 \
     --cpu-omp-threads-binds 0-23 0-47 0-11 0-11,24-35

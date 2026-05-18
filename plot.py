@@ -461,11 +461,14 @@ def plot_energy_vs_num_reqs(output_dir: str, results: List[RequestData], metadat
         return
 
     # Group
+    metric_func = lambda r: float(r.request_batch_energy_joules)/float(
+        r.num_concurrent_requests * (r.num_input_tokens if prefill else r.num_output_tokens)
+    )
     groups, best_omp_thread_binds = group_and_find_best_records(
         data=results,
         group_by_fn=lambda r: r.num_input_tokens if prefill else r.num_output_tokens,
         sub_group_by_fn=lambda r: r.num_concurrent_requests,
-        metric_fn=lambda r: r.request_batch_energy_joules,
+        metric_fn=metric_func,
         best_attr_fn=lambda r: r.cpu_omp_threads_bind,
     )
 
@@ -475,9 +478,7 @@ def plot_energy_vs_num_reqs(output_dir: str, results: List[RequestData], metadat
         x, y = [], []
         for result in group:
             x.append(result.num_concurrent_requests)
-            y.append(float(result.request_batch_energy_joules)/float(
-                result.num_concurrent_requests * (result.num_input_tokens if prefill else result.num_output_tokens)
-            ))
+            y.append(metric_func(result))
         if len(x) == 0:
             continue
         x, mean, std = format_multisample_data(x, y)
