@@ -46,6 +46,7 @@ def plot_cpu_omp_threads_binds_ttft(output_dir: str, results: List[RequestData],
         return
 
     output_dir = f"{output_dir}/cpu_omp_threads_bind_ttft"
+    os.makedirs(output_dir, exist_ok=True)
 
     for num_concurrent_requests in set([r.num_concurrent_requests for r in results]):
         plt.figure(figsize=(10, 6))
@@ -94,6 +95,7 @@ def plot_cpu_omp_threads_binds_ttlt(output_dir: str, results: List[RequestData],
         return
 
     output_dir = f"{output_dir}/cpu_omp_threads_bind_ttlt"
+    os.makedirs(output_dir, exist_ok=True)
 
     min_input_tokens = min([r.num_input_tokens for r in results])
     for num_concurrent_requests in set([r.num_concurrent_requests for r in results]):
