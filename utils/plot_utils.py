@@ -1,8 +1,11 @@
-from typing import List, Any, Callable, Dict
+from typing import List, Any, Callable, Dict, Iterable
 import csv
 from dacite import from_dict
 from ast import literal_eval
 from collections import defaultdict
+import numpy as np
+import matplotlib.pyplot as plt
+import itertools
 
 from results import RequestData
 from run_constants import RESULTS_DIR, PLOTS_DIR
@@ -57,6 +60,7 @@ def group_and_find_best_records(
     sub_group_by_fn: Callable[[RequestData], Any], # to use a lines in plot
     metric_fn: Callable[[RequestData], Any],
     best_attr_fn: Callable[[RequestData], Any],
+    minimize: bool,
 ) -> tuple[dict, list]:
     """
     Groups data, finds the best record per sub-group based on a metric,
@@ -80,7 +84,9 @@ def group_and_find_best_records(
             
             # Check if this is the first time seeing the sub_key, or if it's better (smaller metric)
             if (sub_key not in best_results[group_key] or 
-                    current_metric < metric_fn(best_results[group_key][sub_key])):
+                    (minimize and current_metric < metric_fn(best_results[group_key][sub_key])) or
+                    (not minimize and current_metric > metric_fn(best_results[group_key][sub_key]))
+                ):
                 best_results[group_key][sub_key] = item
     
     # Filter groups and collect the best attributes
@@ -97,3 +103,34 @@ def group_and_find_best_records(
             ))
     
     return dict(groups), sorted(list(best_attributes))
+
+def keep_per_request_batch(
+    items: Iterable[RequestData],
+    metric_fn: Callable[[RequestData], float],
+    keep_max: bool,
+) -> List[RequestData]:
+    best: Dict[Any, RequestData] = {}
+    for item in items:
+        key = item.request_batch_uid
+        if (key not in best or
+            (keep_max and metric_fn(item) > metric_fn(best[key])) or 
+            (not keep_max and metric_fn(item) < metric_fn(best[key]))
+        ):
+            best[key] = item
+    return list(best.values())
+
+def get_colour_cycle():
+    return itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])
+
+def plot_fitted_line(color, x, y) -> str:
+    """
+    Plot fitted line, return formula
+    """
+    m, b = np.polyfit(x, y, 1)
+    plt.plot(x, [m * xv + b for xv in x], color=color, linestyle=':')
+    return f"{m:.4f}n + {b:.4f}"
+
+def get_poly_colour_no_alpha(poly):
+    r, g, b, _ = poly.get_facecolor()[0]
+    color_no_alpha = (r, g, b)
+    return color_no_alpha
