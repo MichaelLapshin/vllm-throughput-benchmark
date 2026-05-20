@@ -20,3 +20,4 @@ variables:
   VLLM_TARGET_DEVICE: cuda
   VLLM_USE_PRECOMPILED: 1 # Don't recompile kernels
   PYTHONPATH: ./vllm_gpu # Declare library path
+  VLLM_USE_DEEP_GEMM: 0 # Disable MoE optimization (requires deep_gemm compilation otherwise)

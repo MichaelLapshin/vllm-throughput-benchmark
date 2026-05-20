@@ -22,3 +22,4 @@ variables:
   VLLM_USE_PRECOMPILED: 0 # Compile CPU build
   PYTHONPATH: ./vllm_cpu # Declare library path
   VLLM_CPU_KVCACHE_SPACE: 10 # GBs allocated for CPU KV cache
+  VLLM_USE_DEEP_GEMM: 0 # Disable MoE optimization (requires deep_gemm compilation otherwise)
