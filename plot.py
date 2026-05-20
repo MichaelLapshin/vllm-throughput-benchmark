@@ -572,17 +572,17 @@ def plot_model_num_requests_vs_throughput(output_dir: str, results: List[Request
     else:
         results = list(filter(lambda r: r.num_input_tokens == 1, results))
 
-    # Define metric
-    metric_fn = lambda r: (
-        r.num_concurrent_requests * (r.num_input_tokens if prefill else r.num_output_tokens)
-        / (r.time_to_token_s[0] if prefill else r.time_to_token_s[-1])
-    )
-
     # From request data from a batch, get the one with max value
     results = keep_per_request_batch(
         results, 
         lambda r: r.time_to_token_s[0] if prefill else r.time_to_token_s[-1],
         keep_max=True
+    )
+
+    # Define metric
+    metric_fn = lambda r: (
+        r.num_concurrent_requests * (r.num_input_tokens if prefill else r.num_output_tokens)
+        / (r.time_to_token_s[0] if prefill else r.time_to_token_s[-1])
     )
 
     # Gather max number of tokens to compare, then filter by the max
@@ -665,14 +665,16 @@ def plot_model_vs_throughput(output_dir: str, results: List[RequestData], metada
     else:
         results = list(filter(lambda r: r.num_input_tokens == 1, results))
 
-    # Define metric
-    metric_fn = lambda r: (r.num_concurrent_requests * (r.num_input_tokens if prefill else r.num_output_tokens) / r.time_to_token_s[-1])
-
     # From request data from a batch, get the one with max value
     results = keep_per_request_batch(
         results,
         lambda r: r.time_to_token_s[0] if prefill else r.time_to_token_s[-1],
         keep_max=True
+    )
+
+    # Define metric
+    metric_fn = lambda r: (
+        r.num_concurrent_requests * (r.num_input_tokens if prefill else r.num_output_tokens) / r.time_to_token_s[-1]
     )
 
     # Gather max number of tokens to compare, then filter by the max
