@@ -627,7 +627,7 @@ def plot_model_num_requests_vs_throughput(output_dir: str, results: List[Request
 
         # Mark the results
         for result in group:
-            mark[result.num_output_tokens] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
+            mark[result.num_concurrent_requests] = MARKERS[best_omp_thread_binds.index(result.cpu_omp_threads_bind)]
         for i in range(len(x)):
             if x[i] in mark:
                 plt.scatter(x[i], mean[i], marker=mark[x[i]], color=color, s=70)
