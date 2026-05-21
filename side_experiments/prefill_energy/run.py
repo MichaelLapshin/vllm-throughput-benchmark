@@ -7,7 +7,7 @@ import asyncio
 from dataclasses import fields, asdict, dataclass
 
 from run_constants import PROJECT_DIR
-from utils import energy_util 
+from utils import energy_util, metadata_util, hardware_util
 
 from vllm import LLM
 from vllm import SamplingParams
@@ -20,6 +20,14 @@ MODEL = "Qwen/Qwen3-14B"
 NUM_REQUESTS_TOTAL = 1024
 NUM_INPUT_TOKENS = 256
 NUM_OUTPUT_TOKENS = 1
+USE_ASYNC_LLM = False
+MAX_NUM_BATCHED_TOKENS_LIST = [
+    # 256, 512, 1024, 2048, 4096, 4096*2, 4096*4, 4096*8, 4096*16
+    4096*8
+]
+NUM_REQUESTS_PER_BATCH_LIST = [
+    256, 128, 64, 32, 16, 8, 4, 2, 1
+]
 
 @dataclass
 class RequestParams:
@@ -134,13 +142,34 @@ if __name__ == "__main__":
     timestamp = datetime.now(ZoneInfo('America/New_York'))
     results_dir = f"{RESULTS_DIR}/{timestamp}"
 
+    metadata_util.save_metadata(
+        results_dir,
+        {
+            "parameters": {
+                "model": MODEL,
+                "USE_ASYNC_LLM": USE_ASYNC_LLM,
+                "MAX_NUM_BATCHED_TOKENS_LIST": MAX_NUM_BATCHED_TOKENS_LIST,
+                "NUM_REQUESTS_PER_BATCH_LIST": NUM_REQUESTS_PER_BATCH_LIST,
+                "input_tokens_per_request": NUM_INPUT_TOKENS,
+                "output_tokens_per_request": NUM_OUTPUT_TOKENS,
+                "num_warmup_request_batches": 1,
+            },
+            "environment": {
+                "CPU_NAME": hardware_util.get_cpu_name(),
+                "GPU_NAME": hardware_util.get_gpu_name(0),
+                "CPU_AFFINITY": sorted(os.sched_getaffinity(0)),
+                "CPU_NUMA_NODES": {
+                    int(d[4:]): open(f'/sys/devices/system/node/{d}/cpulist').read().strip()
+                    for d in os.listdir('/sys/devices/system/node/')
+                    if d.startswith('node')
+                }
+            },
+        }
+    )
+
     results = []
-    for max_num_batched_tokens in [
-        256, 512, 1024, 2048, 4096, 4096*2, 4096*4, 4096*8, 4096*16
-    ]:
-        for num_requests_per_batch in [
-            256, 128, 64, 32, 16, 8, 4, 2, 1
-        ]:
+    for max_num_batched_tokens in MAX_NUM_BATCHED_TOKENS_LIST:
+        for num_requests_per_batch in NUM_REQUESTS_PER_BATCH_LIST:
             params = RequestParams(
                     input_tokens_per_request=NUM_INPUT_TOKENS,
                     output_tokens_per_request=NUM_OUTPUT_TOKENS,
@@ -149,8 +178,11 @@ if __name__ == "__main__":
                     num_warmup_request_batches=1,
                     max_num_batched_tokens=max_num_batched_tokens
                 )
-            results.append(run_energy_benchmark_LLM(params))
-            # results.append(asyncio.run(run_energy_benchmark_AsyncLLMEngine(params)))
+            
+            if USE_ASYNC_LLM:
+                results.append(asyncio.run(run_energy_benchmark_AsyncLLMEngine(params)))
+            else:
+                results.append(run_energy_benchmark_LLM(params))
 
     # Save results
     os.makedirs(results_dir, exist_ok=True)
