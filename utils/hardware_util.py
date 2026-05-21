@@ -45,7 +45,7 @@ def get_gpu_name(gpu_number: int) -> str:
 def get_cpu_cores_avg_temp() -> int:
     temps = psutil.sensors_temperatures()
     temps_sum = []
-    for entry in temps['coretemp']:
+    for entry in temps.get('coretemp', []):
         if 'coretemp' in entry:
             temps_sum.append(entry.current)
     return -1 if not temps_sum else int(sum(temps_sum)/float(len(temps_sum)))

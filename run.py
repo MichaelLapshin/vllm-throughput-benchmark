@@ -209,6 +209,12 @@ def run_benchmarking():
     })
 
     for model in PARAM_MODELS:
+        asyncio.run(benchmark_vllm_instance(
+            model=model,
+            cpu_omp_threads_bind=None,
+            save_results_func=save_results_func(results_dir)
+        ))
+
         if RUN_ON_CPU:
             for cpu_omp_threads_bind in PARAM_CPU_OMP_THREADS_BINDS:
                 asyncio.run(benchmark_vllm_instance(
@@ -216,12 +222,6 @@ def run_benchmarking():
                     cpu_omp_threads_bind=cpu_omp_threads_bind,
                     save_results_func=save_results_func(results_dir)
                 ))
-        else:
-            asyncio.run(benchmark_vllm_instance(
-                model=model,
-                cpu_omp_threads_bind=None,
-                save_results_func=save_results_func(results_dir)
-            ))
 
 if __name__ == "__main__":
     hardware_util.initialize_nvml()

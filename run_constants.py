@@ -14,6 +14,3 @@ PLOTS_DIR = "plots"
 
 # Value of zero indicates greedy sampling
 VLLM_SAMPLING_TEMPERATURE = 0
-
-# Benchmarking
-BETWEEN_SAMPLE_DELAY_S = 0.5
