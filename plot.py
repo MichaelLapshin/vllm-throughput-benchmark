@@ -42,8 +42,15 @@ def plot_cpu_omp_threads_binds_prefill_throughput(output_dir: str, results: List
     for num_concurrent_requests in set([r.num_concurrent_requests for r in results]):
         plt.figure(figsize=(10, 6))
 
+        # Keep results with highest execution time
+        filtered_results = keep_per_request_batch(
+            results, 
+            lambda r: r.time_to_token_s[0],
+            keep_max=True
+        )
+
         groups = defaultdict(list)
-        for result in results:
+        for result in filtered_results:
             if result.num_concurrent_requests != num_concurrent_requests:
                 continue
             groups[result.cpu_omp_threads_bind].append(result)
@@ -54,7 +61,7 @@ def plot_cpu_omp_threads_binds_prefill_throughput(output_dir: str, results: List
             x, y = [], []
             for result in grouped_results:
                 x.append(result.num_input_tokens)
-                throughput_tps = (result.num_input_tokens + result.num_concurrent_requests) / result.time_to_token_s[0]
+                throughput_tps = (result.num_input_tokens * result.num_concurrent_requests) / result.time_to_token_s[0]
                 y.append(throughput_tps)
             x, mean, std = format_multisample_data(x, y)
             
@@ -65,7 +72,7 @@ def plot_cpu_omp_threads_binds_prefill_throughput(output_dir: str, results: List
 
         plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
         plt.title(
-            f"Request Prefill Throughput vs. CPU OMP Thread Bind\n" \
+            f"Batch Prefill Throughput vs. CPU OMP Thread Bind\n" \
             f"CPU using {metadata['environment']['TORCH_CPU_AVX']}: {cpu_name}\n" \
             f"Model: {model}, Number of Concurrent Reqs: {num_concurrent_requests}"
         )
@@ -95,11 +102,17 @@ def plot_cpu_omp_threads_binds_decode_throughput(output_dir: str, results: List[
     for num_concurrent_requests in set([r.num_concurrent_requests for r in results]):
         plt.figure(figsize=(10, 6))
 
+        # Keep results with highest execution time
+        filtered_results = list(filter(lambda r: num_input_tokens == 1, filtered_results))
+        filtered_results = keep_per_request_batch(
+            filtered_results, 
+            lambda r: r.time_to_token_s[-1],
+            keep_max=True
+        )
+
         groups = defaultdict(list)
-        for result in results:
+        for result in filtered_results:
             if result.num_concurrent_requests != num_concurrent_requests:
-                continue
-            if result.num_input_tokens != min_input_tokens:
                 continue
             groups[result.cpu_omp_threads_bind].append(result)
         for key in groups:
@@ -123,7 +136,7 @@ def plot_cpu_omp_threads_binds_decode_throughput(output_dir: str, results: List[
 
         plt.plot([], [], color="grey", label='Fitted line', linestyle=':')
         plt.title(
-            f"Request Decode Throughput vs. CPU OMP Thread Bind\n" \
+            f"Batch Decode Throughput vs. CPU OMP Thread Bind\n" \
             f"CPU using {metadata['environment']['TORCH_CPU_AVX']}: {cpu_name}\n" \
             f"Model: {model},  Input Tokens: {min_input_tokens},  Concurrent Reqs: {num_concurrent_requests}"
         )
