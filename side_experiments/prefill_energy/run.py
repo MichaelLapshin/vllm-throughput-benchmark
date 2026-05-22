@@ -56,7 +56,7 @@ def run_energy_benchmark_LLM(
         max_num_batched_tokens=params.max_num_batched_tokens,
     )
     sampling_params = SamplingParams(
-        temperature=0.8,
+        temperature=0,
         max_tokens=1,
     )
     prompt_token_ids = [i for i in range(params.input_tokens_per_request)]
