@@ -103,7 +103,7 @@ def plot_cpu_omp_threads_binds_decode_throughput(output_dir: str, results: List[
         plt.figure(figsize=(10, 6))
 
         # Keep results with highest execution time
-        filtered_results = list(filter(lambda r: num_input_tokens == 1, filtered_results))
+        filtered_results = list(filter(lambda r: r.num_input_tokens == 1, results))
         filtered_results = keep_per_request_batch(
             filtered_results, 
             lambda r: r.time_to_token_s[-1],
