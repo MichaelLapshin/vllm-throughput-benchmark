@@ -68,7 +68,7 @@ def run_energy_benchmark_LLM(
     total_batches = params.num_warmup_request_batches + params.num_request_batches
     for run_i in range(total_batches):
         is_warmup = run_i < params.num_warmup_request_batches
-        if is_warmup and time_start_s is None:
+        if not is_warmup and time_start_s is None:
             time_start_s = time.time()
         _ = llm.generate(prompts, sampling_params)
 

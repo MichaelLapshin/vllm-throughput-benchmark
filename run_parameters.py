@@ -21,15 +21,14 @@ parser.add_argument(
     "--models",
     nargs="+", type=str,
     default=[
-        "JackFram/llama-68m",
-        "Qwen/Qwen3-0.6B",
-        "deepseek-ai/deepseek-coder-1.3b-instruct",
-        "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-        "Qwen/Qwen3-1.7B",
-        "Qwen/Qwen3-4B",
-        "Qwen/Qwen3-8B",
-        "Qwen/Qwen3-14B",
-        "Qwen/Qwen3-32B",
+        "facebook/opt-125m",
+        "facebook/opt-300m",
+        "facebook/opt-1.3b",
+        "facebook/opt-2.7b",
+        "facebook/opt-6.7b",
+        "facebook/opt-13b",
+        "facebook/opt-30b",
+        "facebook/opt-66b",
     ],
     help="List of models to benchmark."
 )
@@ -54,12 +53,7 @@ parser.add_argument(
 parser.add_argument(
     "--cpu-omp-threads-binds",
     nargs="+", type=str,
-    default=[
-        "0-5",
-        "0-5,8-13",
-        "0-7",
-        "0-15",
-    ],
+    default=[],
     help="Variants of OMP threads binds to benchmark. Used only for CPU benchmarking."
 )
 parser.add_argument(

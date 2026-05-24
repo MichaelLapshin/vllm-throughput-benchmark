@@ -11,7 +11,7 @@ from results import RequestData
 from run_constants import RESULTS_DIR, PLOTS_DIR
 from utils import metadata_util
 
-MARKERS = ['*', '^', 'P', 's', 'v', 'p']
+MARKERS = ['*', '^', 'P', 's', 'v', 'p', 'D', 'X']
 
 def load_metadata(results_name: str) -> dict:
     return metadata_util.load_metadata(f"{RESULTS_DIR}/{results_name}")
