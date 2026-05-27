@@ -22,7 +22,7 @@ parser.add_argument(
     nargs="+", type=str,
     default=[
         "facebook/opt-125m",
-        "facebook/opt-300m",
+        "facebook/opt-350m",
         "facebook/opt-1.3b",
         "facebook/opt-2.7b",
         "facebook/opt-6.7b",
