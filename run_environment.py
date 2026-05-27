@@ -41,3 +41,6 @@ GPU_RUN_NUMBER = 0
 GPU_NAME = "<None>" if RUN_ON_CPU else hardware_util.get_gpu_name(GPU_RUN_NUMBER)
 SYSTEM_GPU_COUNT = hardware_util.get_gpu_count() if not RUN_ON_CPU else 0
 SYSTEM_GPUS = hardware_util.get_gpu_names() if not RUN_ON_CPU else []
+
+# Intel RAPL
+INTEL_RAPL_ENERGY_CAN_READ = hardware_util.can_read_intel_rapl_energy()

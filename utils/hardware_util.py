@@ -80,3 +80,10 @@ def get_gpu_power_watts(gpu_number: int) -> float:
 def get_gpu_freq_mhz(gpu_number: int, clock) -> int:
     return pynvml.nvmlDeviceGetClockInfo(_get_gpu_device(gpu_number), clock)
     
+def can_read_intel_rapl_energy() -> bool:
+    try:
+        with open('/sys/class/powercap/intel-rapl:0/energy_uj', 'r') as f:
+            energy_uj = int(f.read().strip())
+        return True
+    except Exception:
+        return False
