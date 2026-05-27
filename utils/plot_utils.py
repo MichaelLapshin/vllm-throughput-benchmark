@@ -6,8 +6,9 @@ from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
+import os
 
-from results import RequestData
+from results import RequestData, EmissionsData
 from run_constants import RESULTS_DIR, PLOTS_DIR
 from utils import metadata_util
 
@@ -15,6 +16,32 @@ MARKERS = ['*', '^', 'P', 's', 'v', 'p', 'D', 'X']
 
 def load_metadata(results_name: str) -> dict:
     return metadata_util.load_metadata(f"{RESULTS_DIR}/{results_name}")
+
+def load_csv_emissions(results_name: str) -> Dict[str, EmissionsData]:
+    file_path = f"{RESULTS_DIR}/{results_name}/emissions.csv"
+    if not os.path.isfile(file_path):
+        return {}
+
+    emissions: Dict[EmissionsData] = {}
+    with open(file_path, newline='', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            for key in row:
+                if key not in EmissionsData.__dataclass_fields__:
+                    continue
+                if EmissionsData.__dataclass_fields__[key].type == bool:
+                    assert row[key] in ["True", "False"]
+                    row[key] = row[key] == "True"
+                elif EmissionsData.__dataclass_fields__[key].type == int:
+                    row[key] = 0 if row[key] == '' else int(row[key])
+                elif EmissionsData.__dataclass_fields__[key].type == float:
+                    row[key] = 0 if row[key] == '' else float(row[key])
+                elif EmissionsData.__dataclass_fields__[key].type == List[float]:
+                    row[key] = literal_eval(row[key])
+            emissions_obj = from_dict(data_class=EmissionsData, data=row)
+            assert emissions_obj.experiment_id not in emissions
+            emissions[emissions_obj.experiment_id] = emissions_obj
+    return emissions
 
 def load_csv_data(results_name: str) -> List[RequestData]:
     results: List[RequestData] = []
