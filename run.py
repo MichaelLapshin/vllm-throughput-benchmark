@@ -7,6 +7,9 @@ import asyncio
 from typing import List
 from dataclasses import fields, asdict
 import gc
+import pynvml
+from dataclasses import dataclass
+from codecarbon import OfflineEmissionsTracker
 
 import torch
 if torch.cuda.is_available():
@@ -39,6 +42,7 @@ async def benchmark_vllm_instance(
     model: str,
     cpu_omp_threads_bind,
     save_results_func,
+    results_dir,
 ):
     if cpu_omp_threads_bind is None:
         os.environ.pop('VLLM_CPU_OMP_THREADS_BIND', None)
@@ -137,11 +141,20 @@ async def benchmark_vllm_instance(
 
                     cpu_temp_before_run = hardware_util.get_cpu_cores_avg_temp()
                     gpu_temp_before_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
+                    tracker = OfflineEmissionsTracker(
+                        experiment_id=request_batch_uid,
+                        measure_power_secs=0.1,
+                        output_dir=results_dir,
+                        gpu_ids=[GPU_RUN_NUMBER],
+                        log_level="error",
+                    )
+                    tracker.start()
                     time_start_s = time.time()
-                    
+
                     results = await run_request_batch(num_requests)
                     
                     time_end_s = time.time()
+                    tracker.stop()
                     try:
                         request_batch_energy_joules = energy_util.get_energy_joules(time_start_s, time_end_s)
                     except Exception:
@@ -212,7 +225,8 @@ def run_benchmarking():
         asyncio.run(benchmark_vllm_instance(
             model=model,
             cpu_omp_threads_bind=None,
-            save_results_func=save_results_func(results_dir)
+            save_results_func=save_results_func(results_dir),
+            results_dir=results_dir,
         ))
 
         if RUN_ON_CPU:
@@ -220,7 +234,8 @@ def run_benchmarking():
                 asyncio.run(benchmark_vllm_instance(
                     model=model,
                     cpu_omp_threads_bind=cpu_omp_threads_bind,
-                    save_results_func=save_results_func(results_dir)
+                    save_results_func=save_results_func(results_dir),
+                    results_dir=results_dir,
                 ))
 
 if __name__ == "__main__":

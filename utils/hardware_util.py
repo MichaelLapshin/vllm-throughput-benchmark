@@ -3,6 +3,7 @@ import torch
 import psutil
 import pynvml
 from typing import List
+import time
 
 _nvml_initialized = False
 _gpu_count = None
@@ -65,3 +66,17 @@ def get_gpu_names() -> List[str]:
     initialize_nvml()
     gpu_count = get_gpu_count()
     return [get_gpu_name(i) for i in range(gpu_count)]
+
+def get_gpu_energy_consumption_joules(gpu_number: int) -> float:
+    # Returns current energy in joules
+    initialize_nvml()
+    return pynvml.nvmlDeviceGetTotalEnergyConsumption(_get_gpu_device(gpu_number)) / 1000.0
+
+def get_gpu_power_watts(gpu_number: int) -> float:
+    # Returns current energy in watts
+    initialize_nvml()
+    return pynvml.nvmlDeviceGetPowerUsage(_get_gpu_device(gpu_number)) / 1000.0
+
+def get_gpu_freq_mhz(gpu_number: int, clock) -> int:
+    return pynvml.nvmlDeviceGetClockInfo(_get_gpu_device(gpu_number), clock)
+    
