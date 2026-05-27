@@ -244,7 +244,8 @@ def run_benchmarking():
             asyncio.run(benchmark_vllm_instance(
                 model=model,
                 cpu_omp_threads_bind=None,
-                save_results_func=save_results_func(results_dir)
+                save_results_func=save_results_func(results_dir),
+                results_dir=results_dir,
             ))
 
 if __name__ == "__main__":
