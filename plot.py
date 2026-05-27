@@ -899,7 +899,7 @@ def plot_hardware_utility(output_dir: str, results: List[RequestData], emissions
         plt.grid(True)
         plt.legend()
 
-        plt.savefig(f"{output_dir}/hardware_joules_per_{'prefill' if prefill else 'decode'}_token-{token_num}_tokens.png", bbox_inches='tight')
+        plt.savefig(f"{output_dir}/hardware_utility-{'prefill' if prefill else 'decode'}-{token_num}_tokens.png", bbox_inches='tight')
         plt.close()
 
 if __name__ == "__main__":
