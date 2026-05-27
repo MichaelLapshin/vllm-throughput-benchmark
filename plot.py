@@ -958,7 +958,8 @@ if __name__ == "__main__":
             plot_histogram_of_samples_times(model_output_dir, model_results, metadata)
             plot_energy_vs_num_reqs(model_output_dir, model_results, metadata, show_line_eq=False, prefill=False)
             plot_energy_vs_num_reqs(model_output_dir, model_results, metadata, show_line_eq=False, prefill=True)
-            plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=False)
-            plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=True)
-            plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=False)
-            plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=True)
+            if emissions:
+                plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=False)
+                plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=True)
+                plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=False)
+                plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=True)
