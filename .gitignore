@@ -16,3 +16,4 @@ vllm/third_party/
 # Benchmarking output dirs
 results/
 plots/
+*.out
