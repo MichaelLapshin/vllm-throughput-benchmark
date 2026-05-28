@@ -14,21 +14,18 @@ parser.add_argument(
 parser.add_argument(
     "--num-runs",
     type=int,
-    default=3,
+    default=5,
     help="Number of runs. Used for computing sample deviation."
 )
 parser.add_argument(
     "--models",
     nargs="+", type=str,
     default=[
-        "facebook/opt-125m",
-        "facebook/opt-350m",
-        "facebook/opt-1.3b",
-        "facebook/opt-2.7b",
-        "facebook/opt-6.7b",
-        "facebook/opt-13b",
-        "facebook/opt-30b",
-        "facebook/opt-66b",
+        "JackFram/llama-68m",
+        "JackFram/llama-160m",
+        "huggyllama/llama-7b",
+        "huggyllama/llama-13b",
+        "huggyllama/llama-65b",
     ],
     help="List of models to benchmark."
 )
