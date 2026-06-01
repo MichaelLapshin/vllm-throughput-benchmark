@@ -147,7 +147,7 @@ def load_report_data(model):
 
 def plot_metrics(model, report_data):
     for metric in extended_metrics:
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(12, 6))
 
         if metric not in metric_units:
             print(f"Skipping metric '{metric}'")
@@ -165,13 +165,13 @@ def plot_metrics(model, report_data):
         
             plt.plot(x, y, marker='o', linestyle='--', label=SCHEDULER_LABELS[scheduler], color=SCHEDULER_COLOURS[scheduler], markersize=2)
 
-        plt.title(f"{metric} vs. Number of Output Tokens ({model})")
-        plt.xlabel("Number of Output Tokens")
+        plt.title(f"{metric} ({model})", pad=10)
+        plt.xlabel("N")
         plt.ylabel(metric_units.get(metric, metric))
         plt.ylim(bottom=0)
         plt.legend()
         plt.tight_layout()
-
+        
         plt.grid(True)
         metrics_path = f"{PLOTS_PATH}/{model}/ncu_metrics"
         os.makedirs(metrics_path, exist_ok=True)
@@ -179,7 +179,7 @@ def plot_metrics(model, report_data):
         plt.close()
 
 def plot_sm_instructions_per_cycle(model, report_data):
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(12, 6))
 
     for scheduler in SCHEDULERS_TO_TEST:
             x, y = [], []
@@ -197,13 +197,13 @@ def plot_sm_instructions_per_cycle(model, report_data):
             plt.plot(x, y, marker='o', linestyle='--', label=SCHEDULER_LABELS[scheduler], color=SCHEDULER_COLOURS[scheduler], markersize=2)
 
 
-    plt.title(f"SM Instructions Per Active Cycle vs. Number of Output Tokens ({model})")
-    plt.xlabel("Number of Output Tokens")
+    plt.title(f"SM Instructions Per Active Cycle ({model})", pad=10)
+    plt.xlabel("N")
     plt.ylabel("Instructions Per Active Cycle")
     plt.ylim(bottom=0)
     plt.legend()
     plt.tight_layout()
-
+    
     plt.grid(True)
     os.makedirs(f"{PLOTS_PATH}/{model}", exist_ok=True)
     plt.savefig(f"{PLOTS_PATH}/{model}/ncu_sm_instructions_per_active_cycle.png", dpi=300)
@@ -266,13 +266,13 @@ def plot_kernel_metrics(model, report_data):
                         markersize=2,
                     )
 
-            ax_time.set_title(f"Kernel Time vs. Number of Output Tokens\n{kernel_name}")
+            ax_time.set_title(f"Kernel Time\n{kernel_name}")
             ax_time.set_ylabel("Total Kernel Time (ms)")
             ax_time.grid(True)
             ax_time.legend()
 
-            ax_metric.set_title(f"{metric} (weighted avg) vs. Number of Output Tokens")
-            ax_metric.set_xlabel("Number of Output Tokens")
+            ax_metric.set_title(f"{metric} (weighted avg)")
+            ax_metric.set_xlabel("N")
             ax_metric.set_ylabel(metric_units.get(metric, metric))
             ax_metric.grid(True)
             ax_metric.legend()
@@ -280,6 +280,7 @@ def plot_kernel_metrics(model, report_data):
             kernel_dir = f"{PLOTS_PATH}/{model}/ncu_metrics_by_kernel/{metric}"
             os.makedirs(kernel_dir, exist_ok=True)
             plt.tight_layout()
+            
             plt.savefig(
                 f"{kernel_dir}/ncu_{sanitize_filename(kernel_name)}.png",
                 dpi=300,
@@ -288,7 +289,7 @@ def plot_kernel_metrics(model, report_data):
 
 def plot_weighted_metric_overall(model, report_data):
     for metric in kernel_split_metrics:
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(12, 5))
 
         for scheduler in SCHEDULERS_TO_TEST:
             x, y = [], []
@@ -318,8 +319,8 @@ def plot_weighted_metric_overall(model, report_data):
                     markersize=2,
                 )
 
-        plt.title(f"{metric} (weighted avg, overall) vs. Number of Output Tokens ({model})")
-        plt.xlabel("Number of Output Tokens")
+        plt.title(f"{metric} (weighted avg, overall) ({model})", pad=10)
+        plt.xlabel("N")
         plt.ylabel(metric_units.get(metric, metric))
         plt.ylim(bottom=0)
         plt.legend()
@@ -334,6 +335,7 @@ def plot_weighted_metric_overall(model, report_data):
 # Run functions
 if __name__ == "__main__":
     for model in MODELS:
+        print(f"Plotting for model: {model}")
         report_data = load_report_data(model)
         plot_metrics(model, report_data)
         plot_sm_instructions_per_cycle(model, report_data)
