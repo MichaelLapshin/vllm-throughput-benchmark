@@ -1,6 +1,7 @@
 name: vllm_throughput_gpu
 channels:
   - conda-forge
+  - nvidia
   - defaults
 dependencies:
   - python=3.12
@@ -11,6 +12,7 @@ dependencies:
   - make
   - gperftools
   - intel-openmp
+  - nsight-compute
   - pip
   - pip:
     - -r vllm_gpu/requirements/build/cuda.txt
