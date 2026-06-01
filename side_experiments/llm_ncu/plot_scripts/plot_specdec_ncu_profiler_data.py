@@ -1,0 +1,341 @@
+import csv
+from typing import Dict, List, Tuple
+import subprocess
+import io
+import csv
+import matplotlib.pyplot as plt
+import os
+
+from side_experiments.llm_ncu.csv_headers import H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE
+from side_experiments.llm_ncu.common_config import (
+    RESULTS_PATH,
+    BENCHMARK_OUTPUT_TOKENS,
+    MODELS, PLOTS_PATH,
+    SCHEDULERS_TO_TEST, SCHEDULER_LABELS, SCHEDULER_COLOURS,
+    NCU_METRICS, NCU_METRIC_EXTENSIONS
+)
+
+metric_units = {}
+extended_metrics = [base + ext for base in NCU_METRICS for ext in NCU_METRIC_EXTENSIONS]
+time_metric = "gpu__time_duration.sum"
+kernel_split_metrics = {
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    "gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed",
+    "pcie__throughput.avg.pct_of_peak_sustained_elapsed",
+    "sm__instruction_throughput.avg.pct_of_peak_sustained_elapsed",
+    "dram__bytes_read.sum",
+    "dram__cycles_active_read.sum",
+    "dram__cycles_active_write.sum",
+}
+
+def standardize_metric_unit(unit: str, value: float) -> Tuple[str, float]:
+    match unit[0]:
+        case 'K':
+            return unit.removeprefix('K'), value * 1000
+        case 'M':
+            return unit.removeprefix('M'), value * 1000 * 1000
+        case 'G':
+            return unit.removeprefix('G'), value * 1000 * 1000 * 1000
+        case _:
+            return unit, value
+    
+
+def parse_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+def parse_ncu_json(file_path):
+    metrics_arg = ",".join([time_metric] + extended_metrics)
+    cmd = ["ncu", "--import", file_path, "--page", "raw", "--print-units", "base", "--csv", "--metrics", metrics_arg]
+    # print("Processing: ", " ".join(cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    reader = csv.DictReader(io.StringIO(result.stdout))
+
+    """
+    ==PROF== Profiling "unrolled_elementwise_kernel" - 93: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "graph" - 94: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "unrolled_elementwise_kernel" - 95: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "index_elementwise_kernel" - 96: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "kernel" - 97: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "unrolled_elementwise_kernel" - 98: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "reduce_kernel" - 99: 0%....50%....100% - 1 pass
+    ==PROF== Profiling "unrolled_elementwise_kernel" - 100: 0%....50%....100% - 1 pass
+    """
+
+    metric_data: Dict[str, float] = {}
+    kernel_metric_data: Dict[str, Dict[str, Dict[str, float]]] = {
+        metric: {} for metric in kernel_split_metrics
+    }
+
+    for row in reader:
+        kernel_name = row.get("Kernel Name")
+
+        if not kernel_name:
+            for metric in extended_metrics:
+                unit = row.get(metric)
+                if unit:
+                    metric_units[metric] = unit
+            continue
+
+        time_value = parse_float(row.get(time_metric))
+        if time_value is None:
+            print("Warning: time_value is None")
+            continue
+
+        for metric in extended_metrics:
+            value = parse_float(row.get(metric))
+            if value is None:
+                continue
+
+            unit = metric_units.get(metric, "")
+            if unit:
+                unit, value = standardize_metric_unit(unit, value)
+
+            metric_data.setdefault(metric, 0.0)
+            metric_data[metric] += value
+
+            if metric in kernel_split_metrics:
+                kernel_stats = kernel_metric_data[metric].setdefault(
+                    kernel_name,
+                    {"time_ns": 0.0, "weighted_sum": 0.0},
+                )
+                kernel_stats["time_ns"] += time_value
+                kernel_stats["weighted_sum"] += value * time_value
+
+    return {
+        "metrics": metric_data,
+        "kernel_metrics": kernel_metric_data,
+    }
+    
+
+def load_report_data(model):
+    report_data: dict = {} # scheduler -> num_tokens -> metric -> value
+
+    for scheduler in SCHEDULERS_TO_TEST:
+        report_data[scheduler] = {}
+
+        with open(f"{RESULTS_PATH}/{model}/{scheduler.__name__}/ncu_report_file_mapping.csv", "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                num_output_tokens = int(row[H_NUM_OUTPUT_TOKENS])
+                report_dir = row[H_NCU_REPORT_DIR]
+                report_file = row[H_NCU_REPORT_FILE]
+
+                # ncu_context = ncu_report.load_report(
+                #     file_name=f"{report_dir}/{report_file}",
+                #     library_dir=NCU_LIBRARY_DIR,
+                # )
+
+                profile_data = parse_ncu_json(f"{report_dir}/{report_file}")
+
+                report_data[scheduler][num_output_tokens] = profile_data
+
+                # Filter out data not in benchmark output tokens
+                for k in list(report_data[scheduler].keys()):
+                    if k not in BENCHMARK_OUTPUT_TOKENS:
+                        report_data[scheduler].pop(k)
+
+    return report_data
+
+def plot_metrics(model, report_data):
+    for metric in extended_metrics:
+        plt.figure(figsize=(8, 5))
+
+        if metric not in metric_units:
+            print(f"Skipping metric '{metric}'")
+            continue
+
+        for scheduler in SCHEDULERS_TO_TEST:
+            x, y = [], []
+            for num_tokens, data in sorted(list(report_data[scheduler].items())):
+                metrics = data.get("metrics", data)
+                if metric not in metrics:
+                    print(f"Strange... skipping '{metric}' for {num_tokens} tokens")
+                    continue
+                x.append(num_tokens)
+                y.append(metrics[metric])
+        
+            plt.plot(x, y, marker='o', linestyle='--', label=SCHEDULER_LABELS[scheduler], color=SCHEDULER_COLOURS[scheduler], markersize=2)
+
+        plt.title(f"{metric} vs. Number of Output Tokens ({model})")
+        plt.xlabel("Number of Output Tokens")
+        plt.ylabel(metric_units.get(metric, metric))
+        plt.ylim(bottom=0)
+        plt.legend()
+        plt.tight_layout()
+
+        plt.grid(True)
+        metrics_path = f"{PLOTS_PATH}/{model}/ncu_metrics"
+        os.makedirs(metrics_path, exist_ok=True)
+        plt.savefig(f"{metrics_path}/ncu_{metric}.png", dpi=300)
+        plt.close()
+
+def plot_sm_instructions_per_cycle(model, report_data):
+    plt.figure(figsize=(8, 5))
+
+    for scheduler in SCHEDULERS_TO_TEST:
+            x, y = [], []
+            for num_tokens, data in sorted(list(report_data[scheduler].items())):
+                metrics = data.get("metrics", data)
+                if "sm__inst_executed.sum" not in metrics:
+                    print(f"Strange SM... skipping 'sm__inst_executed.sum' for {num_tokens} tokens")
+                    continue
+                if "sm__cycles_active.sum" not in metrics:
+                    print(f"Strange SM... skipping 'sm__cycles_active.sum' for {num_tokens} tokens")
+                    continue
+                x.append(num_tokens)
+                y.append(metrics["sm__inst_executed.sum"]/float(metrics["sm__cycles_active.sum"]))
+        
+            plt.plot(x, y, marker='o', linestyle='--', label=SCHEDULER_LABELS[scheduler], color=SCHEDULER_COLOURS[scheduler], markersize=2)
+
+
+    plt.title(f"SM Instructions Per Active Cycle vs. Number of Output Tokens ({model})")
+    plt.xlabel("Number of Output Tokens")
+    plt.ylabel("Instructions Per Active Cycle")
+    plt.ylim(bottom=0)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.grid(True)
+    os.makedirs(f"{PLOTS_PATH}/{model}", exist_ok=True)
+    plt.savefig(f"{PLOTS_PATH}/{model}/ncu_sm_instructions_per_active_cycle.png", dpi=300)
+    plt.close()
+
+def sanitize_filename(value: str) -> str:
+    safe = []
+    for ch in value:
+        if ch.isalnum() or ch in "-_+.":
+            safe.append(ch)
+        else:
+            safe.append("_")
+    return "".join(safe)[:160]
+
+def plot_kernel_metrics(model, report_data):
+    kernels_by_metric: Dict[str, set[str]] = {m: set() for m in kernel_split_metrics}
+    for scheduler in SCHEDULERS_TO_TEST:
+        for _, data in report_data[scheduler].items():
+            kernel_metrics = data.get("kernel_metrics", {})
+            for metric, kernel_data in kernel_metrics.items():
+                kernels_by_metric.setdefault(metric, set()).update(kernel_data.keys())
+
+    for metric, kernels in kernels_by_metric.items():
+        if not kernels:
+            continue
+        for kernel_name in sorted(kernels):
+            fig, (ax_time, ax_metric) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+
+            for scheduler in SCHEDULERS_TO_TEST:
+                x, total_time_ms, weighted_avg = [], [], []
+                for num_tokens, data in sorted(report_data[scheduler].items()):
+                    kernel_metrics = data.get("kernel_metrics", {}).get(metric, {})
+                    stats = kernel_metrics.get(kernel_name)
+                    if not stats:
+                        continue
+                    time_ns = stats["time_ns"]
+                    if time_ns <= 0:
+                        continue
+                    x.append(num_tokens)
+                    total_time_ms.append(time_ns / 1_000_000)
+                    weighted_avg.append(stats["weighted_sum"] / time_ns)
+
+                if x:
+                    ax_time.plot(
+                        x,
+                        total_time_ms,
+                        marker='o',
+                        linestyle='--',
+                        label=SCHEDULER_LABELS[scheduler],
+                        color=SCHEDULER_COLOURS[scheduler],
+                        markersize=2,
+                    )
+                    ax_metric.plot(
+                        x,
+                        weighted_avg,
+                        marker='o',
+                        linestyle='--',
+                        label=SCHEDULER_LABELS[scheduler],
+                        color=SCHEDULER_COLOURS[scheduler],
+                        markersize=2,
+                    )
+
+            ax_time.set_title(f"Kernel Time vs. Number of Output Tokens\n{kernel_name}")
+            ax_time.set_ylabel("Total Kernel Time (ms)")
+            ax_time.grid(True)
+            ax_time.legend()
+
+            ax_metric.set_title(f"{metric} (weighted avg) vs. Number of Output Tokens")
+            ax_metric.set_xlabel("Number of Output Tokens")
+            ax_metric.set_ylabel(metric_units.get(metric, metric))
+            ax_metric.grid(True)
+            ax_metric.legend()
+
+            kernel_dir = f"{PLOTS_PATH}/{model}/ncu_metrics_by_kernel/{metric}"
+            os.makedirs(kernel_dir, exist_ok=True)
+            plt.tight_layout()
+            plt.savefig(
+                f"{kernel_dir}/ncu_{sanitize_filename(kernel_name)}.png",
+                dpi=300,
+            )
+            plt.close()
+
+def plot_weighted_metric_overall(model, report_data):
+    for metric in kernel_split_metrics:
+        plt.figure(figsize=(8, 5))
+
+        for scheduler in SCHEDULERS_TO_TEST:
+            x, y = [], []
+            for num_tokens, data in sorted(report_data[scheduler].items()):
+                kernel_metrics = data.get("kernel_metrics", {}).get(metric, {})
+                total_time = 0.0
+                total_weighted = 0.0
+                for stats in kernel_metrics.values():
+                    time_ns = stats.get("time_ns", 0.0)
+                    total_time += time_ns
+                    total_weighted += stats.get("weighted_sum", 0.0)
+
+                if total_time <= 0:
+                    continue
+
+                x.append(num_tokens)
+                y.append(total_weighted / total_time)
+
+            if x:
+                plt.plot(
+                    x,
+                    y,
+                    marker='o',
+                    linestyle='--',
+                    label=SCHEDULER_LABELS[scheduler],
+                    color=SCHEDULER_COLOURS[scheduler],
+                    markersize=2,
+                )
+
+        plt.title(f"{metric} (weighted avg, overall) vs. Number of Output Tokens ({model})")
+        plt.xlabel("Number of Output Tokens")
+        plt.ylabel(metric_units.get(metric, metric))
+        plt.ylim(bottom=0)
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
+        metrics_path = f"{PLOTS_PATH}/{model}/ncu_metrics"
+        os.makedirs(metrics_path, exist_ok=True)
+        plt.savefig(f"{metrics_path}/ncu_{metric}_weighted_overall.png", dpi=300)
+        plt.close()
+
+# Run functions
+if __name__ == "__main__":
+    for model in MODELS:
+        report_data = load_report_data(model)
+        plot_metrics(model, report_data)
+        plot_sm_instructions_per_cycle(model, report_data)
+        plot_kernel_metrics(model, report_data)
+        plot_weighted_metric_overall(model, report_data)

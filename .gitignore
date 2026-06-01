@@ -17,3 +17,6 @@ vllm/third_party/
 results/
 plots/
 *.out
+
+# Side-experiments
+temp_cuda_graph_dump/*

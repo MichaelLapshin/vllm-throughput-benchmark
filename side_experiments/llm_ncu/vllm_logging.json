@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "formatters": {
+    "default": {
+      "format": "%(asctime)s %(levelname)-8s %(name)-15s %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
+    }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "level": "INFO",
+      "formatter": "default",
+      "stream": "ext://sys.stdout"
+    },
+    "file": {
+      "class": "logging.FileHandler",
+      "level": "DEBUG",
+      "formatter": "default",
+      "filename": "side_experiments/llm_ncu/vllm.log",
+      "encoding": "utf-8"
+    }
+  },
+  "loggers": {
+    "vllm": {
+      "level": "DEBUG",
+      "handlers": ["console", "file"],
+      "propagate": false
+    },
+    "cpu_pathways_scheduler": {
+      "level": "DEBUG",
+      "handlers": ["console", "file"],
+      "propagate": false
+    },
+    "cpu_request_manager": {
+      "level": "DEBUG",
+      "handlers": ["console", "file"],
+      "propagate": false
+    },
+    "async_llm": {
+      "level": "DEBUG",
+      "handlers": ["console", "file"],
+      "propagate": false
+    },
+    "uvicorn": {
+      "level": "WARNING",
+      "handlers": ["console", "file"],
+      "propagate": false
+    },
+    "httpx": {
+      "level": "WARNING",
+      "handlers": ["console", "file"],
+      "propagate": false
+    },
+    "asyncio": {
+      "level": "DEBUG",
+      "handlers": ["console", "file"],
+      "propagate": false
+    }
+  },
+  "root": {
+    "level": "DEBUG",
+    "handlers": ["console", "file"]
+  }
+}

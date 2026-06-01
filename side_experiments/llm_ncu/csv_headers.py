@@ -1,0 +1,6 @@
+H_NUM_INPUT_TOKENS = "Number of input tokens"
+H_NUM_OUTPUT_TOKENS = "Number of output tokens"
+H_E2E_TIMES_S = "E2E times (s)"
+H_E2E_TIME_S = "E2E time (s)"
+H_NCU_REPORT_DIR = "NCU report directory"
+H_NCU_REPORT_FILE = "NCU report file"
