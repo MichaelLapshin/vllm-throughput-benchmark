@@ -14,18 +14,26 @@ from side_experiments.llm_ncu.common_config import (
     SCHEDULERS_TO_TEST, SCHEDULER_LABELS, SCHEDULER_COLOURS,
     NCU_METRICS, NCU_METRIC_EXTENSIONS
 )
+from side_experiments.llm_ncu.speculative_vllm_schedulers import NoSpecDecScheduler_Sequential, NoSpecDecScheduler_Batched
 
 metric_units = {}
-extended_metrics = [base + ext for base in NCU_METRICS for ext in NCU_METRIC_EXTENSIONS]
 time_metric = "gpu__time_duration.sum"
+extended_metrics = [base + ext for base in NCU_METRICS for ext in NCU_METRIC_EXTENSIONS] + [time_metric]
 kernel_split_metrics = {
-    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
     "gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed",
     "pcie__throughput.avg.pct_of_peak_sustained_elapsed",
+    "sm__instruction_throughput.avg.pct_of_peak_sustained_active",
     "sm__instruction_throughput.avg.pct_of_peak_sustained_elapsed",
+    "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed",
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
     "dram__bytes_read.sum",
     "dram__cycles_active_read.sum",
     "dram__cycles_active_write.sum",
+    "dram__throughput.avg.pct_of_peak_sustained_active",
+    "dram__throughput.avg.peak_sustained",
+    "dram__throughput.avg.peak_sustained_active",
+    "dram__throughput.avg.per_second",
 }
 
 def standardize_metric_unit(unit: str, value: float) -> Tuple[str, float]:
@@ -52,7 +60,7 @@ def parse_float(value: str | None) -> float | None:
         return None
 
 def parse_ncu_json(file_path):
-    metrics_arg = ",".join([time_metric] + extended_metrics)
+    metrics_arg = ",".join(extended_metrics)
     cmd = ["ncu", "--import", file_path, "--page", "raw", "--print-units", "base", "--csv", "--metrics", metrics_arg]
     # print("Processing: ", " ".join(cmd))
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -110,29 +118,41 @@ def parse_ncu_json(file_path):
                 kernel_stats["time_ns"] += time_value
                 kernel_stats["weighted_sum"] += value * time_value
 
+    # Compute weighted average of kernels
+    weighted_average = {}
+    for metric in kernel_split_metrics:
+        kernel_metrics = kernel_metric_data.get(metric, {})
+        total_time = 0.0
+        total_weighted = 0.0
+        for stats in kernel_metrics.values():
+            time_ns = stats.get("time_ns", 0.0)
+            total_time += time_ns
+            total_weighted += stats.get("weighted_sum", 0.0)
+
+        if total_time <= 0:
+            continue
+
+        weighted_average[metric] = total_weighted / total_time
+
     return {
         "metrics": metric_data,
         "kernel_metrics": kernel_metric_data,
+        "weighted_average": weighted_average,
     }
     
 
-def load_report_data(model):
+def load_report_data(model, results_dir):
     report_data: dict = {} # scheduler -> num_tokens -> metric -> value
 
     for scheduler in SCHEDULERS_TO_TEST:
         report_data[scheduler] = {}
 
-        with open(f"{RESULTS_PATH}/{model}/{scheduler.__name__}/ncu_report_file_mapping.csv", "r") as f:
+        with open(f"{results_dir}/{model}/{scheduler.__name__}/ncu_report_file_mapping.csv", "r") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 num_output_tokens = int(row[H_NUM_OUTPUT_TOKENS])
                 report_dir = row[H_NCU_REPORT_DIR]
                 report_file = row[H_NCU_REPORT_FILE]
-
-                # ncu_context = ncu_report.load_report(
-                #     file_name=f"{report_dir}/{report_file}",
-                #     library_dir=NCU_LIBRARY_DIR,
-                # )
 
                 profile_data = parse_ncu_json(f"{report_dir}/{report_file}")
 
@@ -294,19 +314,10 @@ def plot_weighted_metric_overall(model, report_data):
         for scheduler in SCHEDULERS_TO_TEST:
             x, y = [], []
             for num_tokens, data in sorted(report_data[scheduler].items()):
-                kernel_metrics = data.get("kernel_metrics", {}).get(metric, {})
-                total_time = 0.0
-                total_weighted = 0.0
-                for stats in kernel_metrics.values():
-                    time_ns = stats.get("time_ns", 0.0)
-                    total_time += time_ns
-                    total_weighted += stats.get("weighted_sum", 0.0)
-
-                if total_time <= 0:
-                    continue
-
-                x.append(num_tokens)
-                y.append(total_weighted / total_time)
+                weighted_average = data.get("weighted_average", {}).get(metric, None)
+                if weighted_average:
+                    x.append(num_tokens)
+                    y.append(weighted_average)
 
             if x:
                 plt.plot(
@@ -332,12 +343,69 @@ def plot_weighted_metric_overall(model, report_data):
         plt.savefig(f"{metrics_path}/ncu_{metric}_weighted_overall.png", dpi=300)
         plt.close()
 
+def plot_model_vs_throughput_pct(models, report_data: dict):
+    N = 1
+
+    pct_metrics_to_profile = [
+        "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed",
+        "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+        "sm__instruction_throughput.avg.pct_of_peak_sustained_elapsed",
+        "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    ]
+
+    for metric in pct_metrics_to_profile:
+        categories = []
+        values = []
+        for model in models:
+            data = report_data[model][NoSpecDecScheduler_Sequential][N]
+            weighted_average = data.get("weighted_average", {}).get(metric, None)
+            if weighted_average is not None:
+                categories.append(model)
+                values.append(weighted_average)
+
+        plt.figure(figsize=(10, 5))
+        plt.bar(categories, values)
+        plt.xticks(rotation=30, ha='right')
+        plt.title(f"{metric} (weighted average),  {N} Output Token{'s' if N > 1 else ''}", pad=10)
+        plt.xlabel("Model")
+        plt.ylabel(metric_units.get(metric, metric))
+        plt.ylim(bottom=0)
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
+        metrics_path = f"{PLOTS_PATH}/comparison"
+        os.makedirs(metrics_path, exist_ok=True)
+        plt.savefig(f"{metrics_path}/ncu_{metric}.png", dpi=300)
+        plt.close()
+
 # Run functions
 if __name__ == "__main__":
+    # Load data
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--name', type=str, default=None, help='Results directory name.')
+    parser.add_argument('-a', '--all', action='store_true', help='Plot for all result directories.')
+    args = parser.parse_args()
+
+    if args.name is None:
+        # Get latest directory in RESULTS_PATH
+        results_dirs = [d for d in os.listdir(RESULTS_PATH) if os.path.isdir(os.path.join(RESULTS_PATH, d))]
+        args.name = max(results_dirs, key=lambda d: os.path.getctime(os.path.join(RESULTS_PATH, d)))
+    
+    if args.all:
+        results_dir_names = [d for d in os.listdir(RESULTS_DIR) if os.path.isdir(os.path.join(RESULTS_DIR, d))]
+    else:
+        results_dir_names = [args.name]
+
+    report_data = {}
+    for model in MODELS:
+        report_data[model] = load_report_data(model, results_dir)
+
+    plot_model_vs_throughput_pct(MODELS, report_data)
+
     for model in MODELS:
         print(f"Plotting for model: {model}")
-        report_data = load_report_data(model)
-        plot_metrics(model, report_data)
-        plot_sm_instructions_per_cycle(model, report_data)
-        plot_kernel_metrics(model, report_data)
-        plot_weighted_metric_overall(model, report_data)
+        plot_metrics(model, report_data[model])
+        plot_sm_instructions_per_cycle(model, report_data[model])
+        plot_kernel_metrics(model, report_data[model])
+        plot_weighted_metric_overall(model, report_data[model])

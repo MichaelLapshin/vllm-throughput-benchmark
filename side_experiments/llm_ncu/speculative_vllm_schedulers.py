@@ -2,11 +2,12 @@ from typing import Any, Dict, List, Tuple
 import nvtx
 import time
 import torch
-import multiprocessing
 from ctypes import c_int, c_double
 import enum
 import os
 import threading
+import ittapi.compat as itt
+import sys
 
 from vllm import SamplingParams
 from vllm.v1.request import Request
@@ -20,6 +21,8 @@ from vllm.v1.request import Request
 from vllm.v1.engine import EngineCoreRequest
 from abc import abstractmethod
 
+from utils import interprocess_util
+
 import request_batching
 
 utils._SAMPLING_EPS = -1
@@ -30,33 +33,67 @@ PROMPT = f"I want you to repeat the following string fifty times: This is a " \
     "person that does a thing when this event happens at some time."
 
 
+PARAM_MODEL_NAME = "vllm_profiler_model_name"
+PARAM_NUM_OUTPUT_TOKENS = "vllm_profiler_num_output_tokens"
+PARAM_PROFILER_TYPE = "vllm_profiler_profiler_type"
+
 class ProfilerType(enum.Enum):
     TIME_PROFILER="time_profiler"
     VLLM_PROFILER="vllm_profiler"
     NCU_PROFILER="ncu_profiler"
+    ITTAPI_PROFILER="ittapi_profiler"
 
 
 def get_parameterized_scheduler(scheduler, model_name: str, num_output_tokens: int, profiler: ProfilerType):
-    ParameterizedScheduler = type(f"{scheduler.__name__}", (scheduler,), {
-        'MODEL_NAME': model_name,
-        'NUM_OUTPUT_TOKENS': num_output_tokens,
-        'PROFILER_TYPE': profiler,
-    })
-    return ParameterizedScheduler
+
+    shared_model_name = interprocess_util.SharedMemoryValue(name=PARAM_MODEL_NAME, create=True, fmt="64s", init_value="<none>".encode('utf-8'))
+    shared_model_name.value = model_name.encode('utf-8')
+
+    shared_num_output_tokens = interprocess_util.SharedMemoryValue(name=PARAM_NUM_OUTPUT_TOKENS, create=True, init_value=-1)
+    shared_num_output_tokens.value = num_output_tokens
+
+    shared_profiler_type = interprocess_util.SharedMemoryValue(name=PARAM_PROFILER_TYPE, create=True, fmt="32s", init_value="<none>".encode('utf-8'))
+    shared_profiler_type.value = profiler.value.encode('utf-8')
+
+    return scheduler
 
 
 class SchedulerBase(Scheduler):
     SPECULATIVE_CONFIG = None
 
+    # Scheduler parameters
+    _MODEL_NAME_val = None
+    _NUM_OUTPUT_TOKENS_val = None
+    _PROFILER_TYPE_val = None
+
     # Profiling
     PROFILE_START_DISABLE_FLAG = -100000
-    PROFILE_START_COUNTDOWN = multiprocessing.Value(c_int, PROFILE_START_DISABLE_FLAG)
-    PROFILE_EXPECTED_NUM_DECODE_STEPS = multiprocessing.Value(c_int, -1)
+    PROFILE_START_COUNTDOWN = interprocess_util.SharedMemoryValue(name="vllm_profile_start_countdown", create=True, init_value=PROFILE_START_DISABLE_FLAG)
+    PROFILE_EXPECTED_NUM_DECODE_STEPS = interprocess_util.SharedMemoryValue(name="vllm_profile_expected_num_decode_steps", create=True, init_value=-1)
 
-    PROFILE_ELAPSED_TIME = multiprocessing.Value(c_double, -1) # used for sharing results
+    PROFILE_ELAPSED_TIME = interprocess_util.SharedMemoryValue(name="vllm_profile_elapsed_time", create=True, fmt="d", init_value=-1) # used for sharing results
     NVTX_PROFILE_NAME = "RequestProfile"
-    VLLM_PROFILER_START_EVENT = multiprocessing.Event()
-    VLLM_PROFILER_STOP_EVENT = multiprocessing.Event()
+    VLLM_PROFILER_START_EVENT = interprocess_util.SharedMemoryEvent(name="vllm_profile_start_event", create=True)
+    VLLM_PROFILER_STOP_EVENT = interprocess_util.SharedMemoryEvent(name="vllm_profile_stop_event", create=True)
+
+    @classmethod
+    def MODEL_NAME(cls) -> str:
+        if SchedulerBase._MODEL_NAME_val is None:
+            SchedulerBase._MODEL_NAME_val = interprocess_util.SharedMemoryValue(name=PARAM_MODEL_NAME, fmt="64s").value.rstrip(b'\x00').decode('utf-8')
+        return SchedulerBase._MODEL_NAME_val
+
+    @classmethod
+    def NUM_OUTPUT_TOKENS(cls) -> int:
+        if SchedulerBase._NUM_OUTPUT_TOKENS_val is None:
+                SchedulerBase._NUM_OUTPUT_TOKENS_val = interprocess_util.SharedMemoryValue(name=PARAM_NUM_OUTPUT_TOKENS).value
+        return SchedulerBase._NUM_OUTPUT_TOKENS_val
+
+    @classmethod
+    def PROFILER_TYPE(cls) -> ProfilerType:
+        if SchedulerBase._PROFILER_TYPE_val is None:
+            profiler_type = interprocess_util.SharedMemoryValue(name=PARAM_PROFILER_TYPE, fmt="32s").value.rstrip(b'\x00').decode('utf-8')
+            SchedulerBase._PROFILER_TYPE_val = ProfilerType(profiler_type)
+        return SchedulerBase._PROFILER_TYPE_val
 
     def __init__(self, is_speculating, vllm_config: VllmConfig, *args, **kwargs) -> None:
         super().__init__(vllm_config, *args, **kwargs)
@@ -68,6 +105,7 @@ class SchedulerBase(Scheduler):
         # Profiling variables
         self.profiler_running = False
         self.nvtx_range = None
+        self.ittapi_domain = None
         self.profile_start_time = None
 
         # vLLM profiler thread
@@ -85,12 +123,13 @@ class SchedulerBase(Scheduler):
         with SchedulerBase.PROFILE_EXPECTED_NUM_DECODE_STEPS.get_lock():
             SchedulerBase.PROFILE_EXPECTED_NUM_DECODE_STEPS.value = num_profiled_decode_steps
 
-        if ignore_prefill:
-            with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock():
-                assert SchedulerBase.PROFILE_START_COUNTDOWN.value == SchedulerBase.PROFILE_START_DISABLE_FLAG
-                SchedulerBase.PROFILE_START_COUNTDOWN.value = 1 # ignore first output token
-        else:
-            SchedulerBase.PROFILE_START_COUNTDOWN.value = 0
+        with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock():
+            if ignore_prefill:
+                    assert SchedulerBase.PROFILE_START_COUNTDOWN.value == SchedulerBase.PROFILE_START_DISABLE_FLAG
+                    SchedulerBase.PROFILE_START_COUNTDOWN.value = 1 # ignore first output token
+            else:
+                with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock():
+                    SchedulerBase.PROFILE_START_COUNTDOWN.value = 0
 
     def profiler_update_draft_token_ids(self, draft_token_ids: DraftTokenIds):
         raise NotImplementedError()
@@ -98,11 +137,19 @@ class SchedulerBase(Scheduler):
     def start_profiling(self):
         logger.info(f"(Thread ID: {threading.get_ident()}) Starting profiling...")
         assert not self.profiler_running
-        torch.cuda.synchronize()
+
+        # Some experiments may run with a CPU-only PyTorch build.
+        # Guard all CUDA calls to avoid: "Torch not compiled with CUDA enabled".
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
 
         # Start actual profiling tools
-        match self.PROFILER_TYPE:
+        match self.PROFILER_TYPE():
             case ProfilerType.NCU_PROFILER:
+                if not torch.cuda.is_available():
+                    raise RuntimeError(
+                        "NCU profiling requires CUDA, but torch.cuda.is_available() is False."
+                    )
                 logger.info(f"Starting NVTX range...")
                 assert self.nvtx_range is None
                 self.nvtx_range = nvtx.start_range(message=f"{SchedulerBase.NVTX_PROFILE_NAME}")
@@ -115,6 +162,11 @@ class SchedulerBase(Scheduler):
                 # assert not SchedulerBase.VLLM_PROFILER_START_EVENT.is_set()
                 # while SchedulerBase.VLLM_PROFILER_START_EVENT.is_set():
                 #     time.sleep(0.001)
+            case ProfilerType.ITTAPI_PROFILER:
+                assert self.ittapi_domain is None
+                self.ittapi_domain = itt.domain_create("VLLMProfilerDomain")
+                itt.resume()
+                itt.task_begin(self.ittapi_domain, "VLLMProfilerDomain")
             case ProfilerType.TIME_PROFILER:
                 pass
             case _:
@@ -131,7 +183,8 @@ class SchedulerBase(Scheduler):
     def stop_profiling(self):
         logger.info(f"(Thread ID: {threading.get_ident()}) Stopping profiling...")
         assert self.profiler_running
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
 
         # End actual profiling tools
         assert self.profile_start_time is not None
@@ -139,7 +192,7 @@ class SchedulerBase(Scheduler):
             SchedulerBase.PROFILE_ELAPSED_TIME.value = time.perf_counter() - self.profile_start_time
         self.profile_start_time = None
 
-        match self.PROFILER_TYPE:
+        match self.PROFILER_TYPE():
             case ProfilerType.NCU_PROFILER:
                 logger.info(f"Stopping NVTX range...")
                 assert self.nvtx_range is not None
@@ -154,6 +207,9 @@ class SchedulerBase(Scheduler):
                 # assert not SchedulerBase.VLLM_PROFILER_STOP_EVENT.is_set()
                 # while SchedulerBase.VLLM_PROFILER_STOP_EVENT.is_set():
                 #     time.sleep(0.001)
+            case ProfilerType.ITTAPI_PROFILER:
+                itt.task_end(self.ittapi_domain)
+                itt.pause()
             case ProfilerType.TIME_PROFILER:
                 pass
             case _:
@@ -174,7 +230,7 @@ class SchedulerBase(Scheduler):
 
     @classmethod
     def _start_stop_vllm_profiler(cls, llm):
-        if cls.PROFILER_TYPE == ProfilerType.VLLM_PROFILER:
+        if cls.PROFILER_TYPE() == ProfilerType.VLLM_PROFILER:
             SchedulerBase.VLLM_PROFILER_START_EVENT.wait()
             llm.start_profile()
             SchedulerBase.VLLM_PROFILER_START_EVENT.clear()
@@ -228,7 +284,7 @@ class SchedulerBase(Scheduler):
                     SchedulerBase.PROFILE_START_COUNTDOWN.value -= 1  
         else:
             # Stop profiling?
-            with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock() and SchedulerBase.PROFILE_EXPECTED_NUM_DECODE_STEPS.get_lock():
+            with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock(), SchedulerBase.PROFILE_EXPECTED_NUM_DECODE_STEPS.get_lock():
                 if SchedulerBase.PROFILE_START_COUNTDOWN.value != SchedulerBase.PROFILE_START_DISABLE_FLAG:
                     assert SchedulerBase.PROFILE_START_COUNTDOWN.value >= -SchedulerBase.PROFILE_EXPECTED_NUM_DECODE_STEPS.value
                     if SchedulerBase.PROFILE_START_COUNTDOWN.value == -SchedulerBase.PROFILE_EXPECTED_NUM_DECODE_STEPS.value:
@@ -296,8 +352,8 @@ class SchedulerWithOutputCalibration(SchedulerBase):
     
     @classmethod
     def send_calibration_request(cls, llm) -> Tuple[List[int], List[int]]:
-        total_output_tokens = cls.NUM_OUTPUT_TOKENS + cls.TOKEN_MARGIN
-        logger.info(f"Calibrating for {total_output_tokens} tokens ({cls.NUM_OUTPUT_TOKENS=}).")
+        total_output_tokens = cls.NUM_OUTPUT_TOKENS() + cls.TOKEN_MARGIN
+        logger.info(f"Calibrating for {total_output_tokens} tokens ({cls.NUM_OUTPUT_TOKENS()=}).")
 
         engine = llm.llm_engine
         engine.add_request(
@@ -305,7 +361,8 @@ class SchedulerWithOutputCalibration(SchedulerBase):
             prompt=PROMPT,
             params=SamplingParams(
                 temperature=0.0,
-                max_tokens=total_output_tokens
+                max_tokens=total_output_tokens,
+                min_tokens=total_output_tokens,
             ),
         )
 
@@ -333,7 +390,7 @@ class NoSpecDecSchedulerBase(SchedulerWithOutputCalibration):
 class NoSpecDecScheduler_Sequential(NoSpecDecSchedulerBase):
     @classmethod
     def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]):
-        num_output_tokens = cls.NUM_OUTPUT_TOKENS + 1 # To ignore the prefill token
+        num_output_tokens = cls.NUM_OUTPUT_TOKENS() + 1 # To ignore the prefill token
         engine = llm.llm_engine
 
         # Prepare requests
@@ -344,7 +401,7 @@ class NoSpecDecScheduler_Sequential(NoSpecDecSchedulerBase):
         engine.add_request(
             request_id=str(next(llm.request_counter)),
             prompt=PROMPT,
-            params=SamplingParams(temperature=0.0, max_tokens=num_output_tokens),
+            params=SamplingParams(temperature=0.0, max_tokens=num_output_tokens, min_tokens=num_output_tokens),
         )
 
         # Prefill
@@ -366,7 +423,7 @@ class NoSpecDecScheduler_Sequential(NoSpecDecSchedulerBase):
 class NoSpecDecScheduler_Batched(NoSpecDecSchedulerBase):
     @classmethod
     def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]) -> float:
-        num_test_requests = cls.NUM_OUTPUT_TOKENS
+        num_test_requests = cls.NUM_OUTPUT_TOKENS()
         engine = llm.llm_engine
 
         assert len(calibration_output_tokens_ids) >= num_test_requests + 1, f"{len(calibration_output_tokens_ids)=}"
@@ -381,7 +438,7 @@ class NoSpecDecScheduler_Batched(NoSpecDecSchedulerBase):
             unique_prompt_token_ids = [token + i + 1 for token in prompt_token_ids + calibration_output_tokens_ids[:i]]
 
             req_id = str(next(llm.request_counter))
-            sampling_params = SamplingParams(temperature=0.0, max_tokens=2)
+            sampling_params = SamplingParams(temperature=0.0, max_tokens=2, min_tokens=2)
             req = EngineCoreRequest(
                 request_id=req_id,
                 prompt_token_ids=unique_prompt_token_ids,
@@ -421,7 +478,7 @@ class NoSpecDecScheduler_Batched_16ot(NoSpecDecSchedulerBase):
     @classmethod
     def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]) -> float:
         NUM_DECODE_TOKENS = 16
-        num_test_requests = cls.NUM_OUTPUT_TOKENS
+        num_test_requests = cls.NUM_OUTPUT_TOKENS()
         engine = llm.llm_engine
 
         assert len(calibration_output_tokens_ids) >= num_test_requests + 1, f"{len(calibration_output_tokens_ids)=}"
@@ -436,7 +493,7 @@ class NoSpecDecScheduler_Batched_16ot(NoSpecDecSchedulerBase):
             unique_prompt_token_ids = [token + i + 1 for token in prompt_token_ids + calibration_output_tokens_ids[:i]]
 
             req_id = str(next(llm.request_counter))
-            sampling_params = SamplingParams(temperature=0.0, max_tokens=NUM_DECODE_TOKENS+1)
+            sampling_params = SamplingParams(temperature=0.0, max_tokens=NUM_DECODE_TOKENS+1, min_tokens=NUM_DECODE_TOKENS+1)
             req = EngineCoreRequest(
                 request_id=req_id,
                 prompt_token_ids=unique_prompt_token_ids,

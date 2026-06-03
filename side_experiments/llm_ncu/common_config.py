@@ -28,24 +28,32 @@ ENABLE_PREDICT_BONUS_TOKEN = False
 os.environ["ENABLE_PREDICT_BONUS_TOKEN"] = "true" if ENABLE_PREDICT_BONUS_TOKEN else "false"
 print(f"ENABLE_PREDICT_BONUS_TOKEN={ENABLE_PREDICT_BONUS_TOKEN}")
 
+PROFILE_GPU = False # Uses NCU for GPU profiling, ITTAPI for CPU profiling
 
 # vLLM Deployment
 MODELS = [
     "JackFram/llama-68m",
-    "huggyllama/llama-7b",
+    # "JackFram/llama-160m",
+    # "Qwen/Qwen3-0.6B",
+    # "Qwen/Qwen3-4B",
+    # "huggyllama/llama-7b",
+    # "Qwen/Qwen3-8B",
+    # "huggyllama/llama-13b",
+    # "Qwen/Qwen3-14B",
+    # "mistralai/Codestral-22B-v0.1",
+    # "utter-project/EuroLLM-22B-Instruct-2512",
 ]
 
-GPU_MEMORY_UTILIZATION=0.8
-
+GPU_MEMORY_UTILIZATION=0.97
 
 # Benchmark
-BENCHMARK_OUTPUT_TOKENS = [1, 2, 4, 8, 16]
+BENCHMARK_OUTPUT_TOKENS = [1]
 
 # Schedulers
 SCHEDULERS_TO_TEST = [
     NoSpecDecScheduler_Sequential,
-    NoSpecDecScheduler_Batched,
-    NoSpecDecScheduler_Batched_16ot,
+    # NoSpecDecScheduler_Batched,
+    # NoSpecDecScheduler_Batched_16ot,
 ] # type: ignore
 
 
@@ -72,24 +80,29 @@ NCU_METRICS = [
     "dram__bytes_write.sum",
     "dram__bytes_read.sum",
 
-    "dram__cycles_active.sum",
-    "dram__cycles_active_write.sum",
-    "dram__cycles_active_read.sum",
+    # "dram__cycles_active.sum",
+    # "dram__cycles_active_write.sum",
+    # "dram__cycles_active_read.sum",
 
     # NOTE: https://forums.developer.nvidia.com/t/dram-throughput-metrics/167661
     # "gpu__dram_throughput is a breakdown metric based on dram_throughput and fbpa__throughput"
 
-    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
-    "sm__instruction_throughput.avg.pct_of_peak_sustained_elapsed",
-    "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed",
+    # "sm__instruction_throughput.avg.pct_of_peak_sustained_elapsed",
+    # "sm__instruction_throughput.avg.pct_of_peak_sustained_active",
 
-    "dram__throughput.avg.pct_of_peak_sustained_active",
-    "dram__throughput.avg.peak_sustained",
-    "dram__throughput.avg.peak_sustained_active",
-    "dram__throughput.avg.per_second",
-    
-    # "gpu__compute_memory_access_throughput.avg.pct_of_peak_sustained_elapsed",
-    # "gpu__compute_memory_access_throughput_internal_activity.avg.pct_of_peak_sustained_elapsed",
-    # "gpu__compute_memory_request_throughput.avg.pct_of_peak_sustained_elapsed",
-    # "gpu__compute_memory_request_throughput_internal_activity.avg.pct_of_peak_sustained_elapsed",
+    # "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    # "sm__throughput.avg.pct_of_peak_sustained_active",
+
+    # "sm__inst_executed_pipe_tensor_v2.sum",
+    # "smsp__pipe_tensor_cycles_active_v2.sum",
+
+    # "sm__inst_executed.sum",
+
+    # "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed",
+
+    # "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    # "dram__throughput.avg.pct_of_peak_sustained_active",
+    # "dram__throughput.avg.peak_sustained",
+    # "dram__throughput.avg.peak_sustained_active",
+    # "dram__throughput.avg",
 ]
