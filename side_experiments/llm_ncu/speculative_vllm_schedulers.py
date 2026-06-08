@@ -6,8 +6,8 @@ from ctypes import c_int, c_double
 import enum
 import os
 import threading
-import ittapi.compat as itt
 import sys
+import signal
 
 from vllm import SamplingParams
 from vllm.v1.request import Request
@@ -36,16 +36,16 @@ PROMPT = f"I want you to repeat the following string fifty times: This is a " \
 PARAM_MODEL_NAME = "vllm_profiler_model_name"
 PARAM_NUM_OUTPUT_TOKENS = "vllm_profiler_num_output_tokens"
 PARAM_PROFILER_TYPE = "vllm_profiler_profiler_type"
+PARAM_PERF_FIFO_CTL_PATH = "vllm_profiler_perf_fifo_ctl_path"
 
 class ProfilerType(enum.Enum):
     TIME_PROFILER="time_profiler"
     VLLM_PROFILER="vllm_profiler"
     NCU_PROFILER="ncu_profiler"
-    ITTAPI_PROFILER="ittapi_profiler"
+    PERF_PROFILER="perf_profiler"
 
 
-def get_parameterized_scheduler(scheduler, model_name: str, num_output_tokens: int, profiler: ProfilerType):
-
+def set_scheduler_parameters(model_name: str, num_output_tokens: int, profiler: ProfilerType, perf_fifo_ctl_path: str):
     shared_model_name = interprocess_util.SharedMemoryValue(name=PARAM_MODEL_NAME, create=True, fmt="64s", init_value="<none>".encode('utf-8'))
     shared_model_name.value = model_name.encode('utf-8')
 
@@ -55,7 +55,8 @@ def get_parameterized_scheduler(scheduler, model_name: str, num_output_tokens: i
     shared_profiler_type = interprocess_util.SharedMemoryValue(name=PARAM_PROFILER_TYPE, create=True, fmt="32s", init_value="<none>".encode('utf-8'))
     shared_profiler_type.value = profiler.value.encode('utf-8')
 
-    return scheduler
+    shared_perf_fifo_ctl_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_CTL_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
+    shared_perf_fifo_ctl_path.value = perf_fifo_ctl_path.encode('utf-8')
 
 
 class SchedulerBase(Scheduler):
@@ -65,6 +66,7 @@ class SchedulerBase(Scheduler):
     _MODEL_NAME_val = None
     _NUM_OUTPUT_TOKENS_val = None
     _PROFILER_TYPE_val = None
+    _PERF_FIFO_CTL_PATH_val = None
 
     # Profiling
     PROFILE_START_DISABLE_FLAG = -100000
@@ -95,6 +97,12 @@ class SchedulerBase(Scheduler):
             SchedulerBase._PROFILER_TYPE_val = ProfilerType(profiler_type)
         return SchedulerBase._PROFILER_TYPE_val
 
+    @classmethod
+    def PERF_FIFO_CTL_PATH(cls) -> str:
+        if SchedulerBase._PERF_FIFO_CTL_PATH_val is None:
+            SchedulerBase._PERF_FIFO_CTL_PATH_val = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_CTL_PATH, fmt="256s").value.rstrip(b'\x00').decode('utf-8')
+        return SchedulerBase._PERF_FIFO_CTL_PATH_val
+
     def __init__(self, is_speculating, vllm_config: VllmConfig, *args, **kwargs) -> None:
         super().__init__(vllm_config, *args, **kwargs)
         self.is_speculating = is_speculating
@@ -105,7 +113,6 @@ class SchedulerBase(Scheduler):
         # Profiling variables
         self.profiler_running = False
         self.nvtx_range = None
-        self.ittapi_domain = None
         self.profile_start_time = None
 
         # vLLM profiler thread
@@ -162,11 +169,10 @@ class SchedulerBase(Scheduler):
                 # assert not SchedulerBase.VLLM_PROFILER_START_EVENT.is_set()
                 # while SchedulerBase.VLLM_PROFILER_START_EVENT.is_set():
                 #     time.sleep(0.001)
-            case ProfilerType.ITTAPI_PROFILER:
-                assert self.ittapi_domain is None
-                self.ittapi_domain = itt.domain_create("VLLMProfilerDomain")
-                itt.resume()
-                itt.task_begin(self.ittapi_domain, "VLLMProfilerDomain")
+            case ProfilerType.PERF_PROFILER:
+                with open(SchedulerBase.PERF_FIFO_CTL_PATH(), "w") as fifo:
+                    fifo.write("enable")
+                    fifo.flush()
             case ProfilerType.TIME_PROFILER:
                 pass
             case _:
@@ -207,9 +213,10 @@ class SchedulerBase(Scheduler):
                 # assert not SchedulerBase.VLLM_PROFILER_STOP_EVENT.is_set()
                 # while SchedulerBase.VLLM_PROFILER_STOP_EVENT.is_set():
                 #     time.sleep(0.001)
-            case ProfilerType.ITTAPI_PROFILER:
-                itt.task_end(self.ittapi_domain)
-                itt.pause()
+            case ProfilerType.PERF_PROFILER:
+                with open(SchedulerBase.PERF_FIFO_CTL_PATH(), "w") as fifo:
+                    fifo.write("disable")
+                    fifo.flush()
             case ProfilerType.TIME_PROFILER:
                 pass
             case _:

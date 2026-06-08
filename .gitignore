@@ -3,6 +3,7 @@ condaenv.*.requirements.txt
 
 # Environment
 .env
+.vscode
 
 # Caching
 __pycache__/

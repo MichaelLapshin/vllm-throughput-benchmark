@@ -7,11 +7,14 @@ import matplotlib.pyplot as plt
 import os
 
 from side_experiments.llm_ncu.csv_headers import H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE
-from side_experiments.llm_ncu.common_config import (
-    RESULTS_PATH,
+from side_experiments.llm_ncu.constants import (
+    RESULTS_PATH, PLOTS_PATH,
+    SCHEDULER_LABELS, SCHEDULER_COLOURS,
+)
+from side_experiments.llm_ncu.parameters import (
     BENCHMARK_OUTPUT_TOKENS,
-    MODELS, PLOTS_PATH,
-    SCHEDULERS_TO_TEST, SCHEDULER_LABELS, SCHEDULER_COLOURS,
+    MODELS, 
+    SCHEDULERS_TO_TEST,
     NCU_METRICS, NCU_METRIC_EXTENSIONS
 )
 from side_experiments.llm_ncu.speculative_vllm_schedulers import NoSpecDecScheduler_Sequential, NoSpecDecScheduler_Batched
@@ -393,19 +396,20 @@ if __name__ == "__main__":
         args.name = max(results_dirs, key=lambda d: os.path.getctime(os.path.join(RESULTS_PATH, d)))
     
     if args.all:
-        results_dir_names = [d for d in os.listdir(RESULTS_DIR) if os.path.isdir(os.path.join(RESULTS_DIR, d))]
+        results_dir_names = [d for d in os.listdir(RESULTS_PATH) if os.path.isdir(os.path.join(RESULTS_PATH, d))]
     else:
         results_dir_names = [args.name]
 
-    report_data = {}
-    for model in MODELS:
-        report_data[model] = load_report_data(model, results_dir)
+    for results_dir in results_dir_names:
+        report_data = {}
+        for model in MODELS:
+            report_data[model] = load_report_data(model, results_dir)
 
-    plot_model_vs_throughput_pct(MODELS, report_data)
+        plot_model_vs_throughput_pct(MODELS, report_data)
 
-    for model in MODELS:
-        print(f"Plotting for model: {model}")
-        plot_metrics(model, report_data[model])
-        plot_sm_instructions_per_cycle(model, report_data[model])
-        plot_kernel_metrics(model, report_data[model])
-        plot_weighted_metric_overall(model, report_data[model])
+        for model in MODELS:
+            print(f"Plotting for model: {model}")
+            plot_metrics(model, report_data[model])
+            plot_sm_instructions_per_cycle(model, report_data[model])
+            plot_kernel_metrics(model, report_data[model])
+            plot_weighted_metric_overall(model, report_data[model])

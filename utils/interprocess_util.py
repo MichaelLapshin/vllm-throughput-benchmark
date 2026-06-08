@@ -4,7 +4,7 @@ import struct
 import fcntl
 from dataclasses import dataclass
 from multiprocessing import shared_memory
-from typing import Optional
+from typing import Optional, Any
 
 
 @dataclass
@@ -39,7 +39,7 @@ class SharedMemoryValue:
         fmt: str = "q",              # int64 by default
         create: bool = False,
         lock_dir: str = "/tmp/vllm_ipc_locks",
-        init_value=0,
+        init_value: Any = 0,
     ):
         self.name = name
         self.fmt = fmt

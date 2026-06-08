@@ -1,21 +1,10 @@
 import pathlib
 import os
-import os
 
 from side_experiments.llm_ncu.speculative_vllm_schedulers import (
-    SchedulerBase,
     NoSpecDecScheduler_Sequential, NoSpecDecScheduler_Batched, NoSpecDecScheduler_Batched_16ot,
 )
-
-# Paths
-EXPERIMENT_PATH = f"{pathlib.Path(__file__).parent.resolve()}"
-
-RESULTS_PATH = f"{EXPERIMENT_PATH}/results"
-os.makedirs(RESULTS_PATH, exist_ok=True)
-
-PLOTS_PATH = f"{EXPERIMENT_PATH}/plots"
-os.makedirs(PLOTS_PATH, exist_ok=True)
-
+from side_experiments.llm_ncu.constants import EXPERIMENT_PATH
 
 # vLLM environment variables
 os.environ["VLLM_CONFIGURE_LOGGING"] = "1"
@@ -28,7 +17,7 @@ ENABLE_PREDICT_BONUS_TOKEN = False
 os.environ["ENABLE_PREDICT_BONUS_TOKEN"] = "true" if ENABLE_PREDICT_BONUS_TOKEN else "false"
 print(f"ENABLE_PREDICT_BONUS_TOKEN={ENABLE_PREDICT_BONUS_TOKEN}")
 
-PROFILE_GPU = False # Uses NCU for GPU profiling, ITTAPI for CPU profiling
+PROFILE_GPU = False # Uses NCU for GPU profiling, Perf for CPU profiling
 
 # vLLM Deployment
 MODELS = [
@@ -37,11 +26,8 @@ MODELS = [
     # "Qwen/Qwen3-0.6B",
     # "Qwen/Qwen3-4B",
     # "huggyllama/llama-7b",
-    # "Qwen/Qwen3-8B",
     # "huggyllama/llama-13b",
-    # "Qwen/Qwen3-14B",
     # "mistralai/Codestral-22B-v0.1",
-    # "utter-project/EuroLLM-22B-Instruct-2512",
 ]
 
 GPU_MEMORY_UTILIZATION=0.97
@@ -55,21 +41,6 @@ SCHEDULERS_TO_TEST = [
     # NoSpecDecScheduler_Batched,
     # NoSpecDecScheduler_Batched_16ot,
 ] # type: ignore
-
-
-# Labels (reduced to schedulers in test)
-SCHEDULER_LABELS = {s: l for s, l in {
-    NoSpecDecScheduler_Sequential: "Sequential Decoding (N tokens x 1 request)",
-    NoSpecDecScheduler_Batched: "Batched Decoding (1 token x N requests)",
-    NoSpecDecScheduler_Batched_16ot: "Batched Decoding (16 tokens x N requests)"
-}.items() if s in SCHEDULERS_TO_TEST}
-
-SCHEDULER_COLOURS = {s: c for s, c in {
-    NoSpecDecScheduler_Sequential: "navy",
-    NoSpecDecScheduler_Batched: "orange",
-    NoSpecDecScheduler_Batched_16ot: "green",
-}.items() if s in SCHEDULERS_TO_TEST}
-
 
 # NCU Profiler
 NCU_LIBRARY_DIR = None
