@@ -37,6 +37,11 @@ def run_benchmark(results_dir):
             report_dir = f"{results_dir}/{model}/{scheduler.__name__}/ncu_profiles"
             os.makedirs(report_dir, exist_ok=True)
 
+            metadata_util.save_metadata(
+                report_dir,
+                data={"report_dir": report_dir},
+            )
+
             for num_output_tokens in BENCHMARK_OUTPUT_TOKENS:
                 report_name = f"tokens_{num_output_tokens}"
                 perf_fifo_ctl_path = f"{report_dir}/{report_name}_perf.ctl"
@@ -57,6 +62,12 @@ def run_benchmark(results_dir):
                             "-s", scheduler.__name__,
                             "-p", ProfilerType.NCU_PROFILER.value,
                     ]
+
+                    metadata_util.add_metadata(
+                        report_dir,
+                        f"command-token_{num_output_tokens}",
+                        command
+                    )
 
                     print("Running command \n", " ".join(command))
                     subprocess.run(command, check=True)
@@ -84,10 +95,17 @@ def run_benchmark(results_dir):
                             "-c", perf_fifo_ctl_path,
                     ]
 
+                    metadata_util.add_metadata(
+                        report_dir,
+                        f"python_command-token_{num_output_tokens}",
+                        python_command
+                    )
+
                     # Create pipeline
                     subprocess.run(["mkfifo", perf_fifo_ctl_path], check=True)
 
                     perf_stat_groups = {
+                        "default": [],
                         "general": [
                             "-e", "cycles",
                             "-e", "instructions",
@@ -107,8 +125,11 @@ def run_benchmark(results_dir):
                             "-M", "memory_bandwidth_write",
                             "-M", "loads_per_instr",
                         ],
-                        "tma_memory_bound": [
-                            "-M", "tma_memory_bound",
+                        "tma_backend_bound_group": [
+                            "-M", "tma_backend_bound_group",
+                        ],
+                        "tma_memory_bound_group": [
+                            "-M", "tma_memory_bound_group",
                         ],
                         "tma_l1": [
                             "-M", "TmaL1",
@@ -128,49 +149,69 @@ def run_benchmark(results_dir):
                         ],
                     }
 
+                    metadata_util.add_metadata(
+                        report_dir,
+                        f"python_command-token_{num_output_tokens}",
+                        python_command
+                    )
+
                     # Run perf command
-                    for stat_group_name, stat_group_args in perf_stat_groups.items():
+                    for rec_intervals in [False, True]:
                         perf_stat_command = [
                             "perf", "stat",
                             "--delay=-1", # start the perf perofiler as paused
                             f"--control", f"fifo:{perf_fifo_ctl_path}",
-                            # "-r", "3", # take multiple samples
                             # "-A", # do not aggregate counts across all monitored CPUs
                             "-j", # print output in json format'
                             "-a",
-                            "-I", "1",
                         ]
-                        
-                        command = perf_stat_command + stat_group_args + python_command
-                        print("Running command \n", " ".join(command))
-                        perf_result = subprocess.run(
-                            command,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            check=True,
-                        )
 
-                        with open(f"{report_dir}/{report_name}_perf_stat-{stat_group_name}.data", "a") as f:
-                            enabled = False
-                            for line in perf_result.stderr.splitlines():
-                                if "Events enabled" in line:
-                                    enabled = True
-                                    continue
-                                
-                                if "Events disabled" in line:
-                                    enabled = False
-                                    continue
+                        if rec_intervals:
+                            perf_stat_command += ["-I", "1"]
+                        else:
+                            perf_stat_command += ["-r", "3"] # take multiple samples
 
-                                if enabled:
-                                    try:
-                                        line_json = json.loads(line)
-                                        pcnt_running = line_json.get("pcnt-running", None)
-                                        assert pcnt_running is None or pcnt_running == 100.00, \
-                                            f"Must have perfect perf recording. {line_json=}"
-                                    except Exception as e:
-                                        continue
-                                    f.write(line + "\n")
+                        metadata_util.add_metadata(report_dir, f"perf_stat_command{'-interval_1ms' if rec_intervals else ''}", perf_stat_command)
+                        metadata_util.add_metadata(report_dir, f"perf_stat_groups{'-interval_1ms' if rec_intervals else ''}", perf_stat_groups)
+
+                        for stat_group_name, stat_group_args in perf_stat_groups.items():
+                            metadata_util.add_metadata(
+                                report_dir,
+                                f"stat_group_name-token_{num_output_tokens}-{stat_group_name}",
+                                stat_group_args
+                            )
+                            
+                            command = perf_stat_command + stat_group_args + python_command
+                            print("Running command \n", " ".join(command))
+                            perf_result = subprocess.run(
+                                command,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.PIPE,
+                                text=True,
+                                check=True,
+                            )
+
+                            with open(f"{report_dir}/{report_name}_perf_stat-{stat_group_name}{'-interval_1ms' if rec_intervals else ''}.data", "a") as f:
+                                enabled = False if rec_intervals else True
+                                for line in perf_result.stderr.splitlines():
+                                    if rec_intervals:
+                                        if "Events enabled" in line:
+                                            enabled = True
+                                            continue
+                                        
+                                        if "Events disabled" in line:
+                                            enabled = False
+                                            continue
+
+                                    if enabled:
+                                        try:
+                                            line_json = json.loads(line)
+                                            pcnt_running = line_json.get("pcnt-running", None)
+                                            assert pcnt_running is None or pcnt_running == 100.00, \
+                                                f"Must have perfect perf recording. {line_json=}"
+                                        except Exception as e:
+                                            continue
+                                        f.write(line + "\n")
 
                     # Perf mem
                     perf_mem_command = [
@@ -186,14 +227,15 @@ def run_benchmark(results_dir):
                         stderr=subprocess.PIPE,
                         text=True,
                         check=True,
-                    )                    
+                    )   
+
+                    metadata_util.add_metadata(
+                        report_dir,
+                        f"perf_mem_command-token_{num_output_tokens}",
+                        perf_mem_command
+                    )
                     
                     os.remove(perf_fifo_ctl_path) # cleanup
-
-                metadata_util.save_metadata(
-                    report_dir,
-                    data={"commands": commands},
-                )
 
 if __name__ == "__main__":
     load_dotenv()
