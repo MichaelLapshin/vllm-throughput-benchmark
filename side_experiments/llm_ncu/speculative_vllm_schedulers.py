@@ -37,6 +37,7 @@ PARAM_MODEL_NAME = "vllm_profiler_model_name"
 PARAM_NUM_OUTPUT_TOKENS = "vllm_profiler_num_output_tokens"
 PARAM_PROFILER_TYPE = "vllm_profiler_profiler_type"
 PARAM_PERF_FIFO_CTL_PATH = "vllm_profiler_perf_fifo_ctl_path"
+PARAM_PERF_FIFO_ACK_PATH = "vllm_profiler_perf_fifo_ack_path"
 
 class ProfilerType(enum.Enum):
     TIME_PROFILER="time_profiler"
@@ -45,7 +46,13 @@ class ProfilerType(enum.Enum):
     PERF_PROFILER="perf_profiler"
 
 
-def set_scheduler_parameters(model_name: str, num_output_tokens: int, profiler: ProfilerType, perf_fifo_ctl_path: str):
+def set_scheduler_parameters(
+    model_name: str,
+    num_output_tokens: int,
+    profiler: ProfilerType,
+    perf_fifo_ctl_path: str,
+    perf_fifo_ack_path: str,
+):
     shared_model_name = interprocess_util.SharedMemoryValue(name=PARAM_MODEL_NAME, create=True, fmt="64s", init_value="<none>".encode('utf-8'))
     shared_model_name.value = model_name.encode('utf-8')
 
@@ -58,6 +65,9 @@ def set_scheduler_parameters(model_name: str, num_output_tokens: int, profiler: 
     shared_perf_fifo_ctl_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_CTL_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
     shared_perf_fifo_ctl_path.value = perf_fifo_ctl_path.encode('utf-8')
 
+    shared_perf_fifo_ack_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_ACK_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
+    shared_perf_fifo_ack_path.value = perf_fifo_ack_path.encode('utf-8')
+
 
 class SchedulerBase(Scheduler):
     SPECULATIVE_CONFIG = None
@@ -67,6 +77,7 @@ class SchedulerBase(Scheduler):
     _NUM_OUTPUT_TOKENS_val = None
     _PROFILER_TYPE_val = None
     _PERF_FIFO_CTL_PATH_val = None
+    _PERF_FIFO_ACK_PATH_val = None
 
     # Profiling
     PROFILE_START_DISABLE_FLAG = -100000
@@ -102,6 +113,12 @@ class SchedulerBase(Scheduler):
         if SchedulerBase._PERF_FIFO_CTL_PATH_val is None:
             SchedulerBase._PERF_FIFO_CTL_PATH_val = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_CTL_PATH, fmt="256s").value.rstrip(b'\x00').decode('utf-8')
         return SchedulerBase._PERF_FIFO_CTL_PATH_val
+
+    @classmethod
+    def PERF_FIFO_ACK_PATH(cls) -> str:
+        if SchedulerBase._PERF_FIFO_ACK_PATH_val is None:
+            SchedulerBase._PERF_FIFO_ACK_PATH_val = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_ACK_PATH, fmt="256s").value.rstrip(b'\x00').decode('utf-8')
+        return SchedulerBase._PERF_FIFO_ACK_PATH_val
 
     def __init__(self, is_speculating, vllm_config: VllmConfig, *args, **kwargs) -> None:
         super().__init__(vllm_config, *args, **kwargs)
@@ -173,6 +190,9 @@ class SchedulerBase(Scheduler):
                 with open(SchedulerBase.PERF_FIFO_CTL_PATH(), "w") as fifo:
                     fifo.write("enable")
                     fifo.flush()
+                with open(SchedulerBase.PERF_FIFO_ACK_PATH(), "r") as file:
+                    ack_msg = file.read(5)
+                    assert ack_msg == "ack\n\x00"
             case ProfilerType.TIME_PROFILER:
                 pass
             case _:
@@ -217,6 +237,9 @@ class SchedulerBase(Scheduler):
                 with open(SchedulerBase.PERF_FIFO_CTL_PATH(), "w") as fifo:
                     fifo.write("disable")
                     fifo.flush()
+                with open(SchedulerBase.PERF_FIFO_ACK_PATH(), "r") as file:
+                    ack_msg = file.read(5)
+                    assert ack_msg == "ack\n\x00"
             case ProfilerType.TIME_PROFILER:
                 pass
             case _:

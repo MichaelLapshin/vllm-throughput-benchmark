@@ -26,3 +26,15 @@ SCHEDULER_COLOURS = {
     NoSpecDecScheduler_Batched: "orange",
     NoSpecDecScheduler_Batched_16ot: "green",
 }
+
+# vLLM environment variables
+os.environ["VLLM_CONFIGURE_LOGGING"] = "1"
+os.environ["VLLM_LOGGING_CONFIG_PATH"] = f"{EXPERIMENT_PATH}/vllm_logging.json"
+os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "1" # Switch between `InprocClient` and `MPClient`
+
+# vLLM constant parameters
+GPU_MEMORY_UTILIZATION=0.97
+
+# Benchmark environment variables
+ENABLE_PREDICT_BONUS_TOKEN = False
+os.environ["ENABLE_PREDICT_BONUS_TOKEN"] = "true" if ENABLE_PREDICT_BONUS_TOKEN else "false"

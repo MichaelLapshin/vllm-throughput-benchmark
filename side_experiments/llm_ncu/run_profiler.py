@@ -18,7 +18,8 @@ from side_experiments.llm_ncu.parameters import (
     MODELS,
     SCHEDULERS_TO_TEST,
     NCU_METRICS,
-    PROFILE_GPU
+    PROFILE_GPU,
+    PERF_STAT_RUNS, PERF_STAT_PROFILE_METRICS,
 )
 from utils import metadata_util
 
@@ -33,8 +34,8 @@ def run_benchmark(results_dir):
     )
 
     for model in MODELS:
-        for scheduler in SCHEDULERS_TO_TEST:
-            report_dir = f"{results_dir}/{model}/{scheduler.__name__}/ncu_profiles"
+        for scheduler_name in SCHEDULERS_TO_TEST:
+            report_dir = f"{results_dir}/{model}/{scheduler_name}/ncu_profiles"
             os.makedirs(report_dir, exist_ok=True)
 
             metadata_util.save_metadata(
@@ -45,6 +46,7 @@ def run_benchmark(results_dir):
             for num_output_tokens in BENCHMARK_OUTPUT_TOKENS:
                 report_name = f"tokens_{num_output_tokens}"
                 perf_fifo_ctl_path = f"{report_dir}/{report_name}_perf.ctl"
+                perf_fifo_ack_path = f"{report_dir}/{report_name}_perf.ack"
                 commands = []
 
                 if PROFILE_GPU:
@@ -59,7 +61,7 @@ def run_benchmark(results_dir):
                         "python", "-m", "side_experiments.llm_ncu.launch_scheduler_run_calibrated_request",
                             "-m", model,
                             "-n", f"{num_output_tokens}",
-                            "-s", scheduler.__name__,
+                            "-s", scheduler_name,
                             "-p", ProfilerType.NCU_PROFILER.value,
                     ]
 
@@ -74,7 +76,7 @@ def run_benchmark(results_dir):
                     commands.append(command)
 
                     # Save results to CSV file
-                    with open(f"{results_dir}/{model}/{scheduler.__name__}/ncu_report_file_mapping.csv", "a") as f:
+                    with open(f"{results_dir}/{model}/{scheduler_name}/ncu_report_file_mapping.csv", "a") as f:
                         fieldnames = (H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE)
                         writer = csv.DictWriter(f, fieldnames=fieldnames)
                         if f.tell() == 0:
@@ -90,9 +92,10 @@ def run_benchmark(results_dir):
                         "python", "-m", "side_experiments.llm_ncu.launch_scheduler_run_calibrated_request",
                             "-m", model,
                             "-n", f"{num_output_tokens}",
-                            "-s", scheduler.__name__,
+                            "-s", scheduler_name,
                             "-p", ProfilerType.PERF_PROFILER.value,
                             "-c", perf_fifo_ctl_path,
+                            "-a", perf_fifo_ack_path,
                     ]
 
                     metadata_util.add_metadata(
@@ -103,14 +106,10 @@ def run_benchmark(results_dir):
 
                     # Create pipeline
                     subprocess.run(["mkfifo", perf_fifo_ctl_path], check=True)
+                    subprocess.run(["mkfifo", perf_fifo_ack_path], check=True)
 
                     perf_stat_groups = {
                         "default": [],
-                        "general": [
-                            "-e", "cycles",
-                            "-e", "instructions",
-                            "-M", "cpu_operating_frequency",
-                        ],
                         "uncore_imc": [
                             "-e", "uncore_imc/cas_count_read/",
                             "-e", "uncore_imc/cas_count_write/",
@@ -119,34 +118,41 @@ def run_benchmark(results_dir):
                             "-e", "mem-loads",
                             "-e", "mem-stores",
                         ],
-                        "bandwidth": [
-                            "-M", "cpu_utilization",
-                            "-M", "memory_bandwidth_read",
-                            "-M", "memory_bandwidth_write",
-                            "-M", "loads_per_instr",
-                        ],
-                        "tma_backend_bound_group": [
-                            "-M", "tma_backend_bound_group",
-                        ],
-                        "tma_memory_bound_group": [
-                            "-M", "tma_memory_bound_group",
-                        ],
-                        "tma_l1": [
-                            "-M", "TmaL1",
-                        ],
-                        "tma_l2": [
-                            "-M", "TmaL2",
-                        ],
-                        "tma_l3_mem": [
-                            "-M", "TmaL3mem",
-                        ],
-                        "top_down_l5": [
-                            "-M", "TopdownL5",
-                        ],
                         "energy" : [
                             "-e", "power/energy-pkg/",
                             "-e", "power/energy-ram/",
                         ],
+                        "" : [
+
+                        ],
+                    }
+
+                    if PERF_STAT_PROFILE_METRICS:
+                        perf_stat_groups = perf_stat_groups | {
+                            "bandwidth": [
+                                "-M", "cpu_utilization",
+                                "-M", "memory_bandwidth_read",
+                                "-M", "memory_bandwidth_write",
+                                "-M", "loads_per_instr",
+                            ],
+                            "tma_backend_bound_group": [
+                                "-M", "tma_backend_bound_group",
+                            ],
+                            "tma_memory_bound_group": [
+                                "-M", "tma_memory_bound_group",
+                            ],
+                            "tma_l1": [
+                                "-M", "TmaL1",
+                            ],
+                            "tma_l2": [
+                                "-M", "TmaL2",
+                            ],
+                            "tma_l3_mem": [
+                                "-M", "TmaL3mem",
+                            ],
+                            "top_down_l5": [
+                                "-M", "TopdownL5",
+                            ],
                     }
 
                     metadata_util.add_metadata(
@@ -160,7 +166,7 @@ def run_benchmark(results_dir):
                         perf_stat_command = [
                             "perf", "stat",
                             "--delay=-1", # start the perf perofiler as paused
-                            f"--control", f"fifo:{perf_fifo_ctl_path}",
+                            f"--control", f"fifo:{perf_fifo_ctl_path},{perf_fifo_ack_path}",
                             # "-A", # do not aggregate counts across all monitored CPUs
                             "-j", # print output in json format'
                             "-a",
@@ -169,7 +175,7 @@ def run_benchmark(results_dir):
                         if rec_intervals:
                             perf_stat_command += ["-I", "1"]
                         else:
-                            perf_stat_command += ["-r", "3"] # take multiple samples
+                            perf_stat_command += ["-r", f"{PERF_STAT_RUNS}"] # take multiple samples
 
                         metadata_util.add_metadata(report_dir, f"perf_stat_command{'-interval_1ms' if rec_intervals else ''}", perf_stat_command)
                         metadata_util.add_metadata(report_dir, f"perf_stat_groups{'-interval_1ms' if rec_intervals else ''}", perf_stat_groups)
@@ -204,20 +210,21 @@ def run_benchmark(results_dir):
                                             continue
 
                                     if enabled:
+                                        pcnt_running = None
                                         try:
                                             line_json = json.loads(line)
                                             pcnt_running = line_json.get("pcnt-running", None)
-                                            assert pcnt_running is None or pcnt_running == 100.00, \
-                                                f"Must have perfect perf recording. {line_json=}"
                                         except Exception as e:
                                             continue
+                                        assert pcnt_running is None or pcnt_running == 100.00, \
+                                                f"Must have perfect perf recording. {line_json=}"
                                         f.write(line + "\n")
 
                     # Perf mem
                     perf_mem_command = [
                         "perf", "mem", "record",
                         "--delay=-1", # start the perf perofiler as paused
-                        f"--control", f"fifo:{perf_fifo_ctl_path}",
+                        f"--control", f"fifo:{perf_fifo_ctl_path},{perf_fifo_ack_path}",
                         "-o", f"{report_dir}/{report_name}_perf_mem.data",
                     ]
 
@@ -235,7 +242,9 @@ def run_benchmark(results_dir):
                         perf_mem_command
                     )
                     
-                    os.remove(perf_fifo_ctl_path) # cleanup
+                    # Cleanup
+                    os.remove(perf_fifo_ctl_path) 
+                    os.remove(perf_fifo_ack_path)
 
 if __name__ == "__main__":
     load_dotenv()
