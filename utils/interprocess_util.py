@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 import struct
 import fcntl
@@ -6,6 +7,13 @@ from dataclasses import dataclass
 from multiprocessing import shared_memory
 from typing import Optional, Any
 
+VLLM_TMP_LOCK_DIR = "/tmp/vllm_ipc_locks"
+
+def clear_tmp_lock_dir():
+    """
+    Clear the temporary lock directory.
+    """
+    shutil.rmtree(VLLM_TMP_LOCK_DIR)
 
 @dataclass
 class _FileLock:
@@ -88,7 +96,7 @@ class SharedMemoryEvent:
         self,
         name: str,
         create: bool = False,
-        lock_dir: str = "/tmp/vllm_ipc_locks",
+        lock_dir: str = VLLM_TMP_LOCK_DIR,
         poll_interval_s: float = 0.001,
     ):
         self._flag = SharedMemoryValue(

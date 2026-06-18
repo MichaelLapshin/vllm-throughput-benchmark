@@ -18,10 +18,10 @@ parser.add_argument(
         "JackFram/llama-68m",
         "JackFram/llama-160m",
         "Qwen/Qwen3-0.6B",
-        # "Qwen/Qwen3-4B",
-        # "huggyllama/llama-7b",
-        # "huggyllama/llama-13b",
-        # "mistralai/Codestral-22B-v0.1",
+        "Qwen/Qwen3-4B",
+        "huggyllama/llama-7b",
+        "huggyllama/llama-13b",
+        "mistralai/Codestral-22B-v0.1",
     ],
     help="List of models to benchmark."
 )

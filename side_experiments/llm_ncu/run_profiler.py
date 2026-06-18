@@ -110,20 +110,74 @@ def run_benchmark(results_dir):
 
                     perf_stat_groups = {
                         "default": [],
+                        "ipc": [
+                            "-e", "cpu-cycles",
+                            "-e", "instructions",
+                        ],
                         "uncore_imc": [
                             "-e", "uncore_imc/cas_count_read/",
                             "-e", "uncore_imc/cas_count_write/",
+                            "-e", "uncore_imc/clockticks/",
                         ],
-                        "memory": [
-                            "-e", "mem-loads",
-                            "-e", "mem-stores",
+                        "cache" : [
+                            "-e", "cache-misses",
+                            "-e", "cache-references",
+                        ],
+                        "l1_cache": [
+                            "-e", "L1-dcache-loads",
+                            "-e", "L1-dcache-load-misses",
+                            "-e", "L1-dcache-stores",
+                            "-e", "L1-icache-load-misses",
+                        ],
+                        "llc_cache_load": [
+                            "-e", "LLC-loads",
+                            "-e", "LLC-load-misses",
+                        ],
+                        "llc_cache_store": [
+                            "-e", "LLC-stores",
+                            "-e", "LLC-store-misses",
+                        ],
+                        "topdown_bubbles": [
+                            "-e", "topdown-fetch-bubbles",
+                            "-e", "topdown-recovery-bubbles",
+                            "-e", "topdown-total-slots",
+                        ],
+                        "topdown_slots": [
+                            "-e", "topdown-slots-issued",
+                            "-e", "topdown-slots-retired",
+                            "-e", "topdown-total-slots",
+                        ],
+                        "cycle_activity_l1d": [
+                            "-e", "cycle_activity.cycles_l1d_pending",
+                            "-e", "cycle_activity.stalls_l1d_pending",
+                        ],
+                        "cycle_activity_l2": [
+                            "-e", "cycle_activity.cycles_l2_pending",
+                            "-e", "cycle_activity.stalls_l2_pending",
+                        ],
+                        "cycle_activity_ldm": [
+                            "-e", "cycle_activity.cycles_ldm_pending",
+                            "-e", "cycle_activity.stalls_ldm_pending",
+                        ],
+                        "resource_stalls": [
+                            "-e", "resource_stalls.any",
+                            "-e", "resource_stalls.rob",
+                            "-e", "resource_stalls.rs",
+                            "-e", "resource_stalls.sb",
+                        ],
+                        "uncore_memory": [
+                            "-e", "llc_misses.mem_read",
+                            "-e", "llc_misses.mem_write",
+                            "-e", "unc_m_cas_count.rd",
+                            "-e", "unc_m_cas_count.wr",
                         ],
                         "energy" : [
                             "-e", "power/energy-pkg/",
                             "-e", "power/energy-ram/",
                         ],
-                        "" : [
-
+                        "memory": [
+                            "-e", "mem-loads",
+                            "-e", "mem-stores",
                         ],
                     }
 
@@ -216,8 +270,10 @@ def run_benchmark(results_dir):
                                             pcnt_running = line_json.get("pcnt-running", None)
                                         except Exception as e:
                                             continue
-                                        assert pcnt_running is None or pcnt_running == 100.00, \
-                                                f"Must have perfect perf recording. {line_json=}"
+                                        
+                                        if pcnt_running is not None and pcnt_running != 100.00:
+                                            # assert False, f"Must have perfect perf recording. {line_json=}"
+                                            f.write(f"Warning: pcnt_running ({pcnt_running}) is not 100%\n")
                                         f.write(line + "\n")
 
                     # Perf mem

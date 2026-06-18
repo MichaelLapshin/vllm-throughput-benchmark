@@ -8,7 +8,7 @@ import os
 import sys
 
 
-def sum_jsonl_column(file_path: str, column_name: str) -> float:
+def sum_jsonl_column(file_path: str, column_name: str, filter_by_event: str) -> float:
     """Reads a JSONL file line by line and sums the values of a specified column."""
     total_sum = 0.0
     line_number = 0
@@ -26,6 +26,11 @@ def sum_jsonl_column(file_path: str, column_name: str) -> float:
 
             try:
                 data = json.loads(line)
+
+                if "event" in data:
+                    if data["event"] != filter_by_event:
+                        continue
+                
                 # Check if the key exists in the current JSON object
                 if column_name in data:
                     val = data[column_name]
@@ -68,10 +73,16 @@ def main():
         help="The column/key name to sum up",
         metavar="COLUMN_NAME",
     )
-
+    parser.add_argument(
+        "-e",
+        "--event",
+        required=True,
+        help="Event to filter by",
+        metavar="EVENT",
+    )
     args = parser.parse_args()
 
-    result = sum_jsonl_column(args.file, args.column)
+    result = sum_jsonl_column(args.file, args.column, args.event)
 
     # Format result as integer if it has no decimal part, otherwise float
     if result.is_integer():

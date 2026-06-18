@@ -387,29 +387,22 @@ if __name__ == "__main__":
     # Load data
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--name', type=str, default=None, help='Results directory name.')
-    parser.add_argument('-a', '--all', action='store_true', help='Plot for all result directories.')
     args = parser.parse_args()
 
     if args.name is None:
         # Get latest directory in RESULTS_PATH
         results_dirs = [d for d in os.listdir(RESULTS_PATH) if os.path.isdir(os.path.join(RESULTS_PATH, d))]
         args.name = max(results_dirs, key=lambda d: os.path.getctime(os.path.join(RESULTS_PATH, d)))
-    
-    if args.all:
-        results_dir_names = [d for d in os.listdir(RESULTS_PATH) if os.path.isdir(os.path.join(RESULTS_PATH, d))]
-    else:
-        results_dir_names = [args.name]
 
-    for results_dir in results_dir_names:
-        report_data = {}
-        for model in MODELS:
-            report_data[model] = load_report_data(model, results_dir)
+    report_data = {}
+    for model in MODELS:
+        report_data[model] = load_report_data(model, args.name)
 
-        plot_model_vs_throughput_pct(MODELS, report_data)
+    plot_model_vs_throughput_pct(MODELS, report_data)
 
-        for model in MODELS:
-            print(f"Plotting for model: {model}")
-            plot_metrics(model, report_data[model])
-            plot_sm_instructions_per_cycle(model, report_data[model])
-            plot_kernel_metrics(model, report_data[model])
-            plot_weighted_metric_overall(model, report_data[model])
+    for model in MODELS:
+        print(f"Plotting for model: {model}")
+        plot_metrics(model, report_data[model])
+        plot_sm_instructions_per_cycle(model, report_data[model])
+        plot_kernel_metrics(model, report_data[model])
+        plot_weighted_metric_overall(model, report_data[model])

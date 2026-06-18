@@ -53,6 +53,8 @@ def set_scheduler_parameters(
     perf_fifo_ctl_path: str,
     perf_fifo_ack_path: str,
 ):
+    interprocess_util.clear_tmp_lock_dir()
+
     shared_model_name = interprocess_util.SharedMemoryValue(name=PARAM_MODEL_NAME, create=True, fmt="64s", init_value="<none>".encode('utf-8'))
     shared_model_name.value = model_name.encode('utf-8')
 
@@ -205,6 +207,8 @@ class SchedulerBase(Scheduler):
         with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock():
             SchedulerBase.PROFILE_START_COUNTDOWN.value = 0
         self.profiler_running = True
+
+        logger.info("Started profiler.")
         
     def stop_profiling(self):
         logger.info(f"(Thread ID: {threading.get_ident()}) Stopping profiling...")
@@ -249,6 +253,8 @@ class SchedulerBase(Scheduler):
         with SchedulerBase.PROFILE_START_COUNTDOWN.get_lock():
             SchedulerBase.PROFILE_START_COUNTDOWN.value = SchedulerBase.PROFILE_START_DISABLE_FLAG
         self.profiler_running = False
+
+        logger.info("Stopped profiler.")
 
     @classmethod
     def _profiler_get_elapsed_time_once(cls) -> float: 
