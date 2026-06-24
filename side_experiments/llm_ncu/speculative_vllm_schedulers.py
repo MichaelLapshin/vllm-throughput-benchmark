@@ -29,7 +29,7 @@ utils._SAMPLING_EPS = -1
 
 logger = init_logger(__name__)
 
-PROMPT = f"I want you to repeat the following string fifty times: This is a " \
+PROMPT = f"I want you to repeat the following string five hundred times: This is a " \
     "person that does a thing when this event happens at some time."
 
 
@@ -275,22 +275,20 @@ class SchedulerBase(Scheduler):
             SchedulerBase.VLLM_PROFILER_STOP_EVENT.clear()
 
     @classmethod
-    def start_benchmark(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]) -> float:
+    def start_benchmark(cls, llm) -> float:
         """
         Send and benchmark the custom scheduler's requests.
 
         :param cls: Custom scheduler class
         :param llm: The LLM object
-        :param calibration_output_tokens_ids: The "correct" next tokens of the request.
         :return: Time to execute the benchmark, in seconds.
         :rtype: float
         """
-        assert calibration_output_tokens_ids is not None
 
         # Start threads to monitor when to start vllm profiler
         vllm_profile_monitor_thread = threading.Thread(target=cls._start_stop_vllm_profiler, args=(llm,))
         vllm_profile_monitor_thread.start()
-        cls._send_benchmark_requests(llm, prompt_token_ids, calibration_output_tokens_ids)
+        cls._send_benchmark_requests(llm)
         vllm_profile_monitor_thread.join()
 
         # Wait until the test is done
@@ -307,7 +305,7 @@ class SchedulerBase(Scheduler):
 
     @classmethod
     @abstractmethod
-    def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]) -> None:
+    def _send_benchmark_requests(cls, llm) -> None:
         raise NotImplementedError()
     
     def profiler_after_schedule_logic(self, scheduler_output) -> None:
@@ -340,92 +338,17 @@ class SchedulerBase(Scheduler):
     def has_unfinished_requests(self) -> bool:
         return super().has_unfinished_requests()
 
-class SchedulerWithOutputCalibration(SchedulerBase):
-    TOKEN_MARGIN = 30 # Generate more tokens than outputs, in case needed
-
-    def __init__(self, is_speculating, vllm_config: VllmConfig, *args, **kwargs) -> None:
-        super().__init__(is_speculating, vllm_config, *args, **kwargs)
-
-        # Input/output recorder
-        self.prompt_token_ids = []
-        self.failure_token_ids = []
-
-        self.calibration_request_id = None
-        self.calibration_output_tokens_ids = None
-
-    def add_request(self, request: Request) -> None:
-        if self.num_added_requests == 0:
-            self.calibration_request_id = request.request_id
-        return super().add_request(request)
-
-    def _free_request(self, request: Request) -> Dict[str, Any] | None:
-        # Ensure the calibration request succeeds
-        if not self.prompt_token_ids:
-            self.prompt_token_ids = request.prompt_token_ids
-            self.calibration_output_tokens_ids = request.output_token_ids
-            # The following failure tokens can be anything, but we simply increment token ID
-            self.failure_token_ids = [t + 1 for t in self.calibration_output_tokens_ids]
-
-            assert self.prompt_token_ids
-            logger.info(f"Prefill. Size: {len(self.prompt_token_ids)}. Tokens: {self.prompt_token_ids}")
-            logger.info(f"Calibration. Size: {len(self.calibration_output_tokens_ids)}. Tokens: {list(self.calibration_output_tokens_ids)}")
-        
-        assert self.prompt_token_ids and self.calibration_output_tokens_ids and self.failure_token_ids 
-
-        return super()._free_request(request)
-    
-    def update_draft_token_ids(self, draft_token_ids: DraftTokenIds) -> None:
-        if not self.prompt_token_ids:
-            # NOTE(mlapshin): This statement is what prevents calibration tokens from
-            # triggering profiling start
-            return None
-
-        return self.profiler_update_draft_token_ids(draft_token_ids)
-    
-    def is_calibrating(self) -> bool:
-        return (len(self.waiting) == 1 and self.waiting.peek_request().request_id == self.calibration_request_id) or \
-            (len(self.running) == 1 and self.running[0].request_id == self.calibration_request_id)
-    
-    @classmethod
-    def send_calibration_request(cls, llm) -> Tuple[List[int], List[int]]:
-        total_output_tokens = cls.NUM_OUTPUT_TOKENS() + cls.TOKEN_MARGIN
-        logger.info(f"Calibrating for {total_output_tokens} tokens ({cls.NUM_OUTPUT_TOKENS()=}).")
-
-        engine = llm.llm_engine
-        engine.add_request(
-            request_id=str(next(llm.request_counter)),
-            prompt=PROMPT,
-            params=SamplingParams(
-                temperature=0.0,
-                max_tokens=total_output_tokens,
-                min_tokens=total_output_tokens,
-            ),
-        )
-
-        # Generate output
-        while engine.has_unfinished_requests():
-            step_outputs = engine.step()
-
-        assert len(step_outputs) == 1
-        response = step_outputs[0]
-        assert len(response.outputs) == 1
-        input_tokens = response.prompt_token_ids
-        output_tokens = response.outputs[0].token_ids
-        assert len(output_tokens) == total_output_tokens, f"{len(output_tokens)} < {total_output_tokens}"
-        return input_tokens, output_tokens
-
-
 """
 No Speculative Decoding Scheduler classes
 """
-class NoSpecDecSchedulerBase(SchedulerWithOutputCalibration):
+class NoSpecDecSchedulerBase(SchedulerBase):
     def __init__(self, vllm_config: VllmConfig, *args, **kwargs) -> None:
         super().__init__(is_speculating=False, vllm_config=vllm_config, *args, **kwargs)
 
 
 class NoSpecDecScheduler_Sequential(NoSpecDecSchedulerBase):
     @classmethod
-    def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]):
+    def _send_benchmark_requests(cls, llm):
         num_output_tokens = cls.NUM_OUTPUT_TOKENS() + 1 # To ignore the prefill token
         engine = llm.llm_engine
 
@@ -451,18 +374,13 @@ class NoSpecDecScheduler_Sequential(NoSpecDecSchedulerBase):
         # Validate the output
         assert len(step_outputs) == 1
         output_tokens = step_outputs[0].outputs[0].token_ids
-        assert calibration_output_tokens_ids[:num_output_tokens] == output_tokens, \
-                    f"({len(calibration_output_tokens_ids[:num_output_tokens])})" \
-                    f"{calibration_output_tokens_ids[:num_output_tokens]} == ({len(output_tokens)}) {output_tokens}"
 
 
 class NoSpecDecScheduler_Batched(NoSpecDecSchedulerBase):
     @classmethod
-    def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]) -> float:
+    def _send_benchmark_requests(cls, llm) -> float:
         num_test_requests = cls.NUM_OUTPUT_TOKENS()
         engine = llm.llm_engine
-
-        assert len(calibration_output_tokens_ids) >= num_test_requests + 1, f"{len(calibration_output_tokens_ids)=}"
 
         # Prepare main batch
         SchedulerBase._profiler_register_n_request_batch(
@@ -471,7 +389,7 @@ class NoSpecDecScheduler_Batched(NoSpecDecSchedulerBase):
         )
         for i in range(num_test_requests):
             # NOTE(mlapshin): Randomize the prompt so input parameters aren't shared among requests
-            unique_prompt_token_ids = [token + i + 1 for token in prompt_token_ids + calibration_output_tokens_ids[:i]]
+            unique_prompt_token_ids = [token + i + 1 for token in [k for k in range(10 + i)]]
 
             req_id = str(next(llm.request_counter))
             sampling_params = SamplingParams(temperature=0.0, max_tokens=2, min_tokens=2)
@@ -504,20 +422,16 @@ class NoSpecDecScheduler_Batched(NoSpecDecSchedulerBase):
         logger.info("Validating...")
         assert len(step_outputs) == num_test_requests, f"{len(step_outputs)=} == {num_test_requests=}"
         for i, res in enumerate(step_outputs):
-            input_tokens = res.prompt_token_ids
-            assert len(input_tokens) == len(prompt_token_ids) + i, f"{len(input_tokens)=} == {(len(prompt_token_ids) + i)=}"
             output_tokens = res.outputs[0].token_ids
             assert len(output_tokens) == 2, f"{len(output_tokens)} != 2"
 
 
 class NoSpecDecScheduler_Batched_16ot(NoSpecDecSchedulerBase):
     @classmethod
-    def _send_benchmark_requests(cls, llm, prompt_token_ids: List[int], calibration_output_tokens_ids: List[int]) -> float:
+    def _send_benchmark_requests(cls, llm) -> float:
         NUM_DECODE_TOKENS = 16
         num_test_requests = cls.NUM_OUTPUT_TOKENS()
         engine = llm.llm_engine
-
-        assert len(calibration_output_tokens_ids) >= num_test_requests + 1, f"{len(calibration_output_tokens_ids)=}"
 
         # Prepare main batch
         SchedulerBase._profiler_register_n_request_batch(
@@ -526,7 +440,7 @@ class NoSpecDecScheduler_Batched_16ot(NoSpecDecSchedulerBase):
         )
         for i in range(num_test_requests):
             # NOTE(mlapshin): Randomize the prompt so input parameters aren't shared among requests
-            unique_prompt_token_ids = [token + i + 1 for token in prompt_token_ids + calibration_output_tokens_ids[:i]]
+            unique_prompt_token_ids = [token + i + 1 for token in [k for k in range(10 + i)]]
 
             req_id = str(next(llm.request_counter))
             sampling_params = SamplingParams(temperature=0.0, max_tokens=NUM_DECODE_TOKENS+1, min_tokens=NUM_DECODE_TOKENS+1)
@@ -559,7 +473,5 @@ class NoSpecDecScheduler_Batched_16ot(NoSpecDecSchedulerBase):
         logger.info("Validating...")
         assert len(step_outputs) == num_test_requests, f"{len(step_outputs)=} == {num_test_requests=}"
         for i, res in enumerate(step_outputs):
-            input_tokens = res.prompt_token_ids
-            assert len(input_tokens) == len(prompt_token_ids) + i, f"{len(input_tokens)=} == {(len(prompt_token_ids) + i)=}"
             output_tokens = res.outputs[0].token_ids
             assert len(output_tokens) == NUM_DECODE_TOKENS+1, f"{len(output_tokens)} != {NUM_DECODE_TOKENS + 1}"

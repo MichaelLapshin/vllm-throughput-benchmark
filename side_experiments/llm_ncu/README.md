@@ -9,3 +9,7 @@ In this experiment, we analyze the bottleneck in LLM inference.
     echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
     ```
 
+## Viewing Results
+```
+perf mem report --sort=mem -i <report_file>
+```

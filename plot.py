@@ -13,17 +13,9 @@ from run_constants import RESULTS_DIR, PLOTS_DIR
 from utils import plot_utils
 from utils.plot_utils import (
     MARKERS, group_and_find_best_records, keep_per_request_batch,
-    plot_fitted_line, get_poly_colour_no_alpha, get_colour_cycle
+    plot_fitted_line, get_poly_colour_no_alpha, get_colour_cycle,
+    format_multisample_data
 )
-
-def format_multisample_data(x: list, y: list) -> Tuple:
-    df = pd.DataFrame({'x': x, 'y': y})
-    stats = df.groupby('x')['y'].agg(['mean', 'std']).reset_index()
-    return (
-        np.array(stats['x'].tolist()),
-        np.array(stats['mean'].tolist()),
-        np.array(stats['std'].tolist())
-    )
 
 def plot_cpu_omp_threads_binds_prefill_throughput(output_dir: str, results: List[RequestData], metadata: dict):
     """

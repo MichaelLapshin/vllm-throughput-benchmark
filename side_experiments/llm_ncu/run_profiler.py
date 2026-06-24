@@ -19,9 +19,10 @@ from side_experiments.llm_ncu.parameters import (
     SCHEDULERS_TO_TEST,
     NCU_METRICS,
     PROFILE_GPU,
-    PERF_STAT_RUNS, PERF_STAT_PROFILE_METRICS,
+    PERF_STAT_RUNS, PERF_STAT_PROFILE_METRICS, PERF_STAT_INTERVAL_MS, PERF_MEM_RECORD,
 )
 from utils import metadata_util
+import run_environment
 
 # Request to send
 def run_benchmark(results_dir):
@@ -30,6 +31,7 @@ def run_benchmark(results_dir):
         data={
             "parameters": {k: str(v) for k, v in vars(parameters).items() if k.isupper()},
             "constants": {k: str(v) for k, v in vars(constants).items() if k.isupper()},
+            "environment": {k: str(v) for k, v in vars(run_environment).items() if k.isupper()},
         }
     )
 
@@ -216,7 +218,7 @@ def run_benchmark(results_dir):
                     )
 
                     # Run perf command
-                    for rec_intervals in [False, True]:
+                    for rec_intervals in [False] + ([True] if PERF_STAT_INTERVAL_MS is not None else []):
                         perf_stat_command = [
                             "perf", "stat",
                             "--delay=-1", # start the perf perofiler as paused
@@ -224,15 +226,17 @@ def run_benchmark(results_dir):
                             # "-A", # do not aggregate counts across all monitored CPUs
                             "-j", # print output in json format'
                             "-a",
+                            "--per-socket",
+                            "--no-aggr", # do not aggregate CPU results
                         ]
 
                         if rec_intervals:
-                            perf_stat_command += ["-I", "1"]
+                            perf_stat_command += ["-I", str(PERF_STAT_INTERVAL_MS)]
                         else:
                             perf_stat_command += ["-r", f"{PERF_STAT_RUNS}"] # take multiple samples
 
-                        metadata_util.add_metadata(report_dir, f"perf_stat_command{'-interval_1ms' if rec_intervals else ''}", perf_stat_command)
-                        metadata_util.add_metadata(report_dir, f"perf_stat_groups{'-interval_1ms' if rec_intervals else ''}", perf_stat_groups)
+                        metadata_util.add_metadata(report_dir, f"perf_stat_command{f'-interval_{PERF_STAT_INTERVAL_MS}ms' if rec_intervals else ''}", perf_stat_command)
+                        metadata_util.add_metadata(report_dir, f"perf_stat_groups{f'-interval_{PERF_STAT_INTERVAL_MS}ms' if rec_intervals else ''}", perf_stat_groups)
 
                         for stat_group_name, stat_group_args in perf_stat_groups.items():
                             metadata_util.add_metadata(
@@ -249,9 +253,10 @@ def run_benchmark(results_dir):
                                 stderr=subprocess.PIPE,
                                 text=True,
                                 check=True,
+                                env=os.environ.copy(),
                             )
 
-                            with open(f"{report_dir}/{report_name}_perf_stat-{stat_group_name}{'-interval_1ms' if rec_intervals else ''}.data", "a") as f:
+                            with open(f"{report_dir}/{report_name}_perf_stat-{stat_group_name}{f'-interval_{PERF_STAT_INTERVAL_MS}ms' if rec_intervals else ''}.jsonl", "a") as f:
                                 enabled = False if rec_intervals else True
                                 for line in perf_result.stderr.splitlines():
                                     if rec_intervals:
@@ -277,26 +282,28 @@ def run_benchmark(results_dir):
                                         f.write(line + "\n")
 
                     # Perf mem
-                    perf_mem_command = [
-                        "perf", "mem", "record",
-                        "--delay=-1", # start the perf perofiler as paused
-                        f"--control", f"fifo:{perf_fifo_ctl_path},{perf_fifo_ack_path}",
-                        "-o", f"{report_dir}/{report_name}_perf_mem.data",
-                    ]
+                    if PERF_MEM_RECORD:
+                        perf_mem_command = [
+                            "perf", "mem", "record",
+                            "--delay=-1", # start the perf perofiler as paused
+                            f"--control", f"fifo:{perf_fifo_ctl_path},{perf_fifo_ack_path}",
+                            "-o", f"{report_dir}/{report_name}_perf_mem.data",
+                        ]
 
-                    subprocess.run(
-                        perf_mem_command + python_command,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        check=True,
-                    )   
+                        subprocess.run(
+                            perf_mem_command + python_command,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            check=True,
+                            env=os.environ.copy(),
+                        )   
 
-                    metadata_util.add_metadata(
-                        report_dir,
-                        f"perf_mem_command-token_{num_output_tokens}",
-                        perf_mem_command
-                    )
+                        metadata_util.add_metadata(
+                            report_dir,
+                            f"perf_mem_command-token_{num_output_tokens}",
+                            perf_mem_command
+                        )
                     
                     # Cleanup
                     os.remove(perf_fifo_ctl_path) 
@@ -304,6 +311,7 @@ def run_benchmark(results_dir):
 
 if __name__ == "__main__":
     load_dotenv()
+    assert "LD_PRELOAD" in os.environ
     timestamp = datetime.now(ZoneInfo('America/New_York'))
     results_dir = f"{RESULTS_PATH}/{timestamp}"
     run_benchmark(results_dir)

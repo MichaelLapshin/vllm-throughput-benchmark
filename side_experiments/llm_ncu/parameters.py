@@ -87,6 +87,17 @@ parser.add_argument(
     action='store_true',
     help="Set whether to profile metrics (estimated values based on events) or not."
 )
+parser.add_argument(
+    "--perf-stat-interval-ms",
+    type=int,
+    default=None,
+    help="Set statistics interval length in milliseconds."
+)
+parser.add_argument(
+    "--perf-mem-record",
+    action='store_true',
+    help="Set to record perf memory."
+)
 args = parser.parse_args()
 
 PROFILE_GPU = args.profile_gpu
@@ -109,3 +120,5 @@ NCU_METRICS = args.ncu_metrics
 # Perf Profiler
 PERF_STAT_RUNS = args.perf_stat_runs
 PERF_STAT_PROFILE_METRICS = args.perf_stat_profile_metrics
+PERF_STAT_INTERVAL_MS = args.perf_stat_interval_ms
+PERF_MEM_RECORD = args.perf_mem_record

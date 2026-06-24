@@ -1,11 +1,12 @@
 import argparse
 import importlib
+import os
 
 from vllm import LLM
 
 from side_experiments.llm_ncu.speculative_vllm_schedulers import (
     ProfilerType, set_scheduler_parameters,
-    SchedulerWithOutputCalibration, NoSpecDecScheduler_Batched
+    NoSpecDecScheduler_Batched
 )
 from side_experiments.llm_ncu.constants import (
     GPU_MEMORY_UTILIZATION
@@ -29,6 +30,12 @@ def run_scheduler_single_request(
 
     print(f"Running vLLM with {num_output_tokens} tokens...")
 
+    # Add LD_PRELOAD
+    if "LD_PRELOAD" not in os.environ:
+        CONDA_PREFIX = os.environ["CONDA_PREFIX"]
+        os.environ["LD_PRELOAD"] = f"{CONDA_PREFIX}/lib/libtcmalloc.so:{CONDA_PREFIX}/lib/libiomp5.so"
+    assert "LD_PRELOAD" in os.environ, f"{os.environ=}"
+
     llm = LLM(
         model=model,
         dtype="auto",
@@ -37,13 +44,11 @@ def run_scheduler_single_request(
         speculative_config=scheduler.SPECULATIVE_CONFIG,
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         enable_chunked_prefill=True,
-        max_model_len=256,
+        max_model_len=2048,
         max_num_batched_tokens=16384,
     )
 
-    assert issubclass(scheduler, SchedulerWithOutputCalibration)
-    input_tokens, calibration_output_tokens = scheduler.send_calibration_request(llm)
-    scheduler.start_benchmark(llm, input_tokens, calibration_output_tokens)
+    scheduler.start_benchmark(llm)
 
     del llm
 
