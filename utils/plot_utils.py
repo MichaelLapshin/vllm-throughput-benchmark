@@ -1,4 +1,4 @@
-from typing import List, Any, Callable, Dict, Iterable
+from typing import List, Any, Callable, Dict, Iterable, Tuple
 import csv
 from dacite import from_dict
 from ast import literal_eval
@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 import os
+import pandas as pd
 
 from results import RequestData, EmissionsData
 from run_constants import RESULTS_DIR, PLOTS_DIR
@@ -161,3 +162,23 @@ def get_poly_colour_no_alpha(poly):
     r, g, b, _ = poly.get_facecolor()[0]
     color_no_alpha = (r, g, b)
     return color_no_alpha
+
+def format_multisample_data(x: list, y: list) -> Tuple:
+    df = pd.DataFrame({'x': x, 'y': y})
+    stats = df.groupby('x')['y'].agg(['mean', 'std']).reset_index()
+    return (
+        np.array(stats['x'].tolist()),
+        np.array(stats['mean'].tolist()),
+        np.array(stats['std'].tolist())
+    )
+
+def int_in_range(num: int, range_str: str) -> bool:
+    ranges = range_str.split(',')
+    for r in ranges:
+        start, end = map(int, r.split('-'))
+        if start <= num <= end:
+            return True
+    return False
+
+def sort_xyz(x, y, z, base_order):
+    return map(np.array, zip(*sorted(zip(x, y, z), key=lambda p: base_order.index(p[0]))))

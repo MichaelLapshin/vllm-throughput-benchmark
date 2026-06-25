@@ -25,6 +25,6 @@ def add_metadata(path: str, key: str, value):
     with open(file_path, 'w') as file:
         json.dump(data, file, indent=4)
 
-def load_metadata(path: str):
-    with open(f"{path}/{METADATA_FILE}", 'r') as file:
+def load_metadata(dir_path: str):
+    with open(f"{dir_path}/{METADATA_FILE}", 'r') as file:
         return json.load(file)

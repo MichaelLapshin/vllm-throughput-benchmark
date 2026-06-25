@@ -8,3 +8,4 @@ dotenv==0.9.9
 nvidia-ml-py==13.595.45
 codecarbon==3.2.7
 nvtx==0.2.15
+ittapi==1.2.1
