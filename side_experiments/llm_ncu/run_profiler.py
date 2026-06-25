@@ -209,7 +209,7 @@ def run_benchmark(results_dir):
                             "top_down_l5": [
                                 "-M", "TopdownL5",
                             ],
-                    }
+                        }
 
                     metadata_util.add_metadata(
                         report_dir,
@@ -311,8 +311,6 @@ def run_benchmark(results_dir):
 
 if __name__ == "__main__":
     load_dotenv()
-    assert "LD_PRELOAD" in os.environ
     timestamp = datetime.now(ZoneInfo('America/New_York'))
     results_dir = f"{RESULTS_PATH}/{timestamp}"
     run_benchmark(results_dir)
-

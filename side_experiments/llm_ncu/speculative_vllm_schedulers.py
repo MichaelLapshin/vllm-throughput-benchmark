@@ -50,8 +50,8 @@ def set_scheduler_parameters(
     model_name: str,
     num_output_tokens: int,
     profiler: ProfilerType,
-    perf_fifo_ctl_path: str,
-    perf_fifo_ack_path: str,
+    perf_fifo_ctl_path: str | None,
+    perf_fifo_ack_path: str | None,
 ):
     interprocess_util.clear_tmp_lock_dir()
 
@@ -64,11 +64,13 @@ def set_scheduler_parameters(
     shared_profiler_type = interprocess_util.SharedMemoryValue(name=PARAM_PROFILER_TYPE, create=True, fmt="32s", init_value="<none>".encode('utf-8'))
     shared_profiler_type.value = profiler.value.encode('utf-8')
 
-    shared_perf_fifo_ctl_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_CTL_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
-    shared_perf_fifo_ctl_path.value = perf_fifo_ctl_path.encode('utf-8')
+    if perf_fifo_ctl_path is not None:
+        shared_perf_fifo_ctl_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_CTL_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
+        shared_perf_fifo_ctl_path.value = perf_fifo_ctl_path.encode('utf-8')
 
-    shared_perf_fifo_ack_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_ACK_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
-    shared_perf_fifo_ack_path.value = perf_fifo_ack_path.encode('utf-8')
+    if perf_fifo_ack_path is not None:
+        shared_perf_fifo_ack_path = interprocess_util.SharedMemoryValue(name=PARAM_PERF_FIFO_ACK_PATH, create=True, fmt="256s", init_value="<none>".encode('utf-8'))
+        shared_perf_fifo_ack_path.value = perf_fifo_ack_path.encode('utf-8')
 
 
 class SchedulerBase(Scheduler):

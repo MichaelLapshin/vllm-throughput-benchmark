@@ -16,15 +16,15 @@ os.makedirs(PLOTS_PATH, exist_ok=True)
 
 # Labels
 SCHEDULER_LABELS = {
-    NoSpecDecScheduler_Sequential: "Sequential Decoding (N tokens x 1 request)",
-    NoSpecDecScheduler_Batched: "Batched Decoding (1 token x N requests)",
-    NoSpecDecScheduler_Batched_16ot: "Batched Decoding (16 tokens x N requests)"
+    NoSpecDecScheduler_Sequential.__name__: "Sequential Decoding (N tokens x 1 request)",
+    NoSpecDecScheduler_Batched.__name__: "Batched Decoding (1 token x N requests)",
+    NoSpecDecScheduler_Batched_16ot.__name__: "Batched Decoding (16 tokens x N requests)"
 }
 
 SCHEDULER_COLOURS = {
-    NoSpecDecScheduler_Sequential: "navy",
-    NoSpecDecScheduler_Batched: "orange",
-    NoSpecDecScheduler_Batched_16ot: "green",
+    NoSpecDecScheduler_Sequential.__name__: "navy",
+    NoSpecDecScheduler_Batched.__name__: "orange",
+    NoSpecDecScheduler_Batched_16ot.__name__: "green",
 }
 
 # vLLM environment variables
