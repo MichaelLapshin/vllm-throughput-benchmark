@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 from utils import metadata_util
 from utils.plot_utils import get_colour_cycle, format_multisample_data, int_in_range, sort_xyz
 
-from side_experiments.llm_ncu.constants import RESULTS_PATH, PLOTS_PATH
-from side_experiments.llm_ncu.perf_results import PerfRow, PerfResults
+from side_experiments.llm_metrics.constants import RESULTS_PATH, PLOTS_PATH
+from side_experiments.llm_metrics.perf_results import PerfRow, PerfResults
 
 MODEL_ORDER = [
     "JackFram/llama-68m",

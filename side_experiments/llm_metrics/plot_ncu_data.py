@@ -10,12 +10,12 @@ import argparse
 
 from utils import metadata_util
 
-from side_experiments.llm_ncu.csv_headers import H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE
-from side_experiments.llm_ncu.constants import (
+from side_experiments.llm_metrics.csv_headers import H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE
+from side_experiments.llm_metrics.constants import (
     RESULTS_PATH, PLOTS_PATH,
     SCHEDULER_LABELS, SCHEDULER_COLOURS,
 )
-from side_experiments.llm_ncu.speculative_vllm_schedulers import NoSpecDecScheduler_Sequential, NoSpecDecScheduler_Batched
+from side_experiments.llm_metrics.speculative_vllm_schedulers import NoSpecDecScheduler_Sequential, NoSpecDecScheduler_Batched
 
 metric_units = {}
 time_metric = "gpu__time_duration.sum"
@@ -37,10 +37,8 @@ kernel_split_metrics = {
 }
 
 def get_metrics(metadata) -> list:
-    ncu_metrics = ast.literal_eval(metadata["parameters"]["NCU_METRICS"])
-    ncu_metric_extensions = ast.literal_eval(metadata["parameters"]["NCU_METRIC_EXTENSIONS"])
-    metrics = [base + ext for base in ncu_metrics for ext in ncu_metric_extensions] + [time_metric]
-    return metrics
+    ncu_metrics = ast.literal_eval(metadata["parameters"]["NCU_METRICS"]) + [time_metric]
+    return ncu_metrics
 
 def standardize_metric_unit(unit: str, value: float) -> Tuple[str, float]:
     match unit[0]:

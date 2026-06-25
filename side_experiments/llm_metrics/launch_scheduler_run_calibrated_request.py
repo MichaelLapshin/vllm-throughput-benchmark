@@ -4,11 +4,11 @@ import os
 
 from vllm import LLM
 
-from side_experiments.llm_ncu.speculative_vllm_schedulers import (
+from side_experiments.llm_metrics.speculative_vllm_schedulers import (
     ProfilerType, set_scheduler_parameters,
     NoSpecDecScheduler_Batched
 )
-from side_experiments.llm_ncu.constants import (
+from side_experiments.llm_metrics.constants import (
     GPU_MEMORY_UTILIZATION
 )
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Fetch scheduler class
-    scheduler_module = importlib.import_module("side_experiments.llm_ncu.speculative_vllm_schedulers")
+    scheduler_module = importlib.import_module("side_experiments.llm_metrics.speculative_vllm_schedulers")
     scheduler = getattr(scheduler_module, args.scheduler)
 
     run_scheduler_single_request(

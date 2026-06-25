@@ -9,13 +9,24 @@ In this experiment, we analyze the bottleneck in LLM inference.
     echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
     ```
 
+## Obtaining all Profiling Events
+```
+ncu --list-metrics > ncu_list_metrics.txt
+ncu --query-metrics-mode all > ncu_list_metrics_all.txt
+perf list --desc --long-desc --details > perf_list.txt
+```
+
 ## Launching vLLM NCU
 ```
-python -m side_experiments.llm_ncu.run_profiler \
+python -m side_experiments.llm_metrics.run_profiler \
 --profile-gpu \
 --models JackFram/llama-68m \
 --num-output-tokens 1 \
 --schedulers NoSpecDecScheduler_Sequential
+```
+
+```
+python -m side_experiments.llm_metrics.plot_ncu_data -n <results_dir>
 ```
 
 ## Viewing Results
