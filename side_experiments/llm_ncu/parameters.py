@@ -114,7 +114,6 @@ SCHEDULERS_TO_TEST = args.schedulers
 
 # NCU Profiler
 NCU_LIBRARY_DIR = None
-NCU_METRIC_EXTENSIONS = ["", ".sum", ".avg", ".min", ".max"]
 NCU_METRICS = args.ncu_metrics
 
 # Perf Profiler

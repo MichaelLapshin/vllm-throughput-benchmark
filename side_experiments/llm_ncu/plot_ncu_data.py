@@ -37,10 +37,8 @@ kernel_split_metrics = {
 }
 
 def get_metrics(metadata) -> list:
-    ncu_metrics = ast.literal_eval(metadata["parameters"]["NCU_METRICS"])
-    ncu_metric_extensions = ast.literal_eval(metadata["parameters"]["NCU_METRIC_EXTENSIONS"])
-    metrics = [base + ext for base in ncu_metrics for ext in ncu_metric_extensions] + [time_metric]
-    return metrics
+    ncu_metrics = ast.literal_eval(metadata["parameters"]["NCU_METRICS"]) + [time_metric]
+    return ncu_metrics
 
 def standardize_metric_unit(unit: str, value: float) -> Tuple[str, float]:
     match unit[0]:
