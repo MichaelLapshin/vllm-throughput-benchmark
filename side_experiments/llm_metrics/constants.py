@@ -1,7 +1,7 @@
 import pathlib
 import os
 
-from side_experiments.llm_ncu.speculative_vllm_schedulers import (
+from side_experiments.llm_metrics.speculative_vllm_schedulers import (
     NoSpecDecScheduler_Sequential, NoSpecDecScheduler_Batched, NoSpecDecScheduler_Batched_16ot,
 )
 

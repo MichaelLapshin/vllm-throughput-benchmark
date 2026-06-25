@@ -6,14 +6,14 @@ from dotenv import load_dotenv
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from side_experiments.llm_ncu.speculative_vllm_schedulers import SchedulerBase, ProfilerType
-from side_experiments.llm_ncu.csv_headers import H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE
-from side_experiments.llm_ncu import constants
-from side_experiments.llm_ncu import parameters
-from side_experiments.llm_ncu.constants import (
+from side_experiments.llm_metrics.speculative_vllm_schedulers import SchedulerBase, ProfilerType
+from side_experiments.llm_metrics.csv_headers import H_NUM_OUTPUT_TOKENS, H_NCU_REPORT_DIR, H_NCU_REPORT_FILE
+from side_experiments.llm_metrics import constants
+from side_experiments.llm_metrics import parameters
+from side_experiments.llm_metrics.constants import (
     RESULTS_PATH,
 )
-from side_experiments.llm_ncu.parameters import (
+from side_experiments.llm_metrics.parameters import (
     BENCHMARK_OUTPUT_TOKENS,
     MODELS,
     SCHEDULERS_TO_TEST,
@@ -60,7 +60,7 @@ def run_benchmark(results_dir):
                         "--graph-profiling", "graph",
                         "-o", f"{report_dir}/{report_name}",
                         "-f",
-                        "python", "-m", "side_experiments.llm_ncu.launch_scheduler_run_calibrated_request",
+                        "python", "-m", "side_experiments.llm_metrics.launch_scheduler_run_calibrated_request",
                             "-m", model,
                             "-n", f"{num_output_tokens}",
                             "-s", scheduler_name,
@@ -91,7 +91,7 @@ def run_benchmark(results_dir):
                 else:
                     python_command = [
                         "--",
-                        "python", "-m", "side_experiments.llm_ncu.launch_scheduler_run_calibrated_request",
+                        "python", "-m", "side_experiments.llm_metrics.launch_scheduler_run_calibrated_request",
                             "-m", model,
                             "-n", f"{num_output_tokens}",
                             "-s", scheduler_name,

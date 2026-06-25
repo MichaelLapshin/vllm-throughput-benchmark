@@ -18,7 +18,7 @@ perf list --desc --long-desc --details > perf_list.txt
 
 ## Launching vLLM NCU
 ```
-python -m side_experiments.llm_ncu.run_profiler \
+python -m side_experiments.llm_metrics.run_profiler \
 --profile-gpu \
 --models JackFram/llama-68m \
 --num-output-tokens 1 \
@@ -26,7 +26,7 @@ python -m side_experiments.llm_ncu.run_profiler \
 ```
 
 ```
-python -m side_experiments.llm_ncu.plot_ncu_data -n <results_dir>
+python -m side_experiments.llm_metrics.plot_ncu_data -n <results_dir>
 ```
 
 ## Viewing Results

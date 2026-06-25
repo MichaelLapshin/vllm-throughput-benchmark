@@ -3,7 +3,7 @@ import os
 import importlib
 import argparse
 
-from side_experiments.llm_ncu.constants import EXPERIMENT_PATH
+from side_experiments.llm_metrics.constants import EXPERIMENT_PATH
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -109,7 +109,7 @@ MODELS = args.models
 BENCHMARK_OUTPUT_TOKENS = args.num_output_tokens
 
 # Schedulers
-scheduler_module = importlib.import_module("side_experiments.llm_ncu.speculative_vllm_schedulers")
+scheduler_module = importlib.import_module("side_experiments.llm_metrics.speculative_vllm_schedulers")
 SCHEDULERS_TO_TEST = args.schedulers
 
 # NCU Profiler
