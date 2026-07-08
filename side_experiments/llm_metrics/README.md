@@ -19,8 +19,8 @@ perf list --desc --long-desc --details > perf_list.txt
 ## Launching vLLM NCU
 ```
 python -m side_experiments.llm_metrics.run_profiler \
---profile-gpu \
---models JackFram/llama-68m \
+--profiler-type ncu_profiler \
+--models JackFram/llama-68m JackFram/llama-160m huggyllama/llama-7b huggyllama/llama-13b mistralai/Codestral-22B-v0.1 \
 --num-output-tokens 1 \
 --schedulers NoSpecDecScheduler_Sequential
 ```

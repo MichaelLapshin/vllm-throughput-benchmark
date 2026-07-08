@@ -106,8 +106,8 @@ def plot_intervals(metadata, data_lists, plots_dir):
 if __name__ == "__main__":
     # Load data
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--name', type=str, default=None, help='Results directory name.', required=True))
-    parser.add_argument('-c', '--cpus', type=str, default=None, help='CPUs to filter.', required=True))
+    parser.add_argument('-n', '--name', type=str, default=None, help='Results directory name.', required=True)
+    parser.add_argument('-c', '--cpus', type=str, default=None, help='CPUs to filter.', required=True)
     args = parser.parse_args()
 
     results_dir = os.path.join(RESULTS_PATH, args.name)

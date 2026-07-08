@@ -3,13 +3,17 @@ import os
 import importlib
 import argparse
 
-from side_experiments.llm_metrics.constants import EXPERIMENT_PATH
+from side_experiments.llm_metrics.constants import (
+    EXPERIMENT_PATH,
+    COMPUTE_THROUGHPUT_METRICS, MEMORY_THROUGHPUT_METRICS,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--profile-gpu",
-    action='store_true',
+    "-p", "--profiler-type",
+    type=str,
     help="Uses NCU for GPU profiling, Perf for CPU profiling.",
+    required=True,
 )
 parser.add_argument(
     "--models",
@@ -45,8 +49,9 @@ parser.add_argument(
     "--ncu-metrics",
     nargs="+", type=str,
     default=[
-        "dram__bytes_write.sum",
-        "dram__bytes_read.sum",
+        "gpu__time_duration.sum",
+        # "dram__bytes_write.sum",
+        # "dram__bytes_read.sum",
 
         # "dram__cycles_active.sum",
         # "dram__cycles_active_write.sum",
@@ -73,7 +78,7 @@ parser.add_argument(
         # "dram__throughput.avg.peak_sustained",
         # "dram__throughput.avg.peak_sustained_active",
         # "dram__throughput.avg",
-    ],
+    ] + COMPUTE_THROUGHPUT_METRICS + MEMORY_THROUGHPUT_METRICS,
     help="NCU metrics to profile (requires GPU profiling to be enabled).",
 )
 parser.add_argument(
@@ -100,12 +105,11 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-PROFILE_GPU = args.profile_gpu
-
 # vLLM Deployment
 MODELS = args.models
 
 # Benchmark
+PROFILER_TYPE = args.profiler_type
 BENCHMARK_OUTPUT_TOKENS = args.num_output_tokens
 
 # Schedulers

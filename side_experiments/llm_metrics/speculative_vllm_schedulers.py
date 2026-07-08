@@ -43,6 +43,7 @@ class ProfilerType(enum.Enum):
     TIME_PROFILER="time_profiler"
     VLLM_PROFILER="vllm_profiler"
     NCU_PROFILER="ncu_profiler"
+    NSYS_PROFILER="nsys_profiler"
     PERF_PROFILER="perf_profiler"
 
 
@@ -173,7 +174,7 @@ class SchedulerBase(Scheduler):
 
         # Start actual profiling tools
         match self.PROFILER_TYPE():
-            case ProfilerType.NCU_PROFILER:
+            case ProfilerType.NCU_PROFILER | ProfilerType.NSYS_PROFILER:
                 if not torch.cuda.is_available():
                     raise RuntimeError(
                         "NCU profiling requires CUDA, but torch.cuda.is_available() is False."
@@ -225,7 +226,7 @@ class SchedulerBase(Scheduler):
         self.profile_start_time = None
 
         match self.PROFILER_TYPE():
-            case ProfilerType.NCU_PROFILER:
+            case ProfilerType.NCU_PROFILER | ProfilerType.NSYS_PROFILER:
                 logger.info(f"Stopping NVTX range...")
                 assert self.nvtx_range is not None
                 nvtx.end_range(self.nvtx_range)
