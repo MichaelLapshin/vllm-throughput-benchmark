@@ -816,6 +816,94 @@ def plot_hardware_energy(output_dir: str, results: List[RequestData], emissions:
         plt.savefig(f"{output_dir}/hardware_joules_per_{'prefill' if prefill else 'decode'}_token-{token_num}_tokens.png", bbox_inches='tight')
         plt.close()
 
+def plot_hardware_wattage(output_dir: str, results: List[RequestData], emissions: Dict[str, EmissionsData], metadata: dict, prefill: bool):
+    """
+    Plot the utility of energy components 
+    """
+    cpu_name, gpu_name, run_on_cpu, _ = plot_utils.get_common_metadata(results, metadata)
+    model = plot_utils.get_model(results)
+
+    output_dir = f"{output_dir}/hardware_wattage"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Filter to keep only the largest prefill and decode requests
+    if prefill:
+        results = list(filter(lambda r: r.num_output_tokens == 1, results))
+    else:
+        results = list(filter(lambda r: r.num_input_tokens == 1, results))
+
+    # Plot for each token size
+    tokens_list = set([r.num_input_tokens for r in results] if prefill else [r.num_output_tokens for r in results])
+    for token_num in tokens_list:
+        filtered_results = list(filter(
+            lambda r: r.num_input_tokens == token_num if prefill else r.num_output_tokens == token_num,
+            results
+        ))
+
+        # Keep only one request per batch for reference
+        filtered_results = keep_per_request_batch(filtered_results, lambda _: 1, keep_max=True)
+
+        # Group data
+        groups, best_omp_thread_binds = group_and_find_best_records(
+            data=filtered_results,
+            group_by_fn=lambda r: r.num_input_tokens if prefill else r.num_output_tokens,
+            sub_group_by_fn=lambda r: r.num_concurrent_requests,
+            metric_fn=lambda r: \
+                emissions[r.request_batch_uid].cpu_power + \
+                emissions[r.request_batch_uid].gpu_power + \
+                emissions[r.request_batch_uid].ram_power,
+            best_attr_fn=lambda r: r.cpu_omp_threads_bind,
+            minimize=True,
+        )
+
+        # Compile lines to draw
+        plt.figure(figsize=(10, 6))
+        color_cycle = get_colour_cycle()
+        for num_tokens, group in groups.items():
+            if not group:
+                continue
+            x_cpu, x_gpu, x_ram, y_cpu, y_gpu, y_ram = [], [], [], [], [], []
+            for result in group:
+                emissions_obj = emissions[result.request_batch_uid]
+                num_batch_tokens = result.num_concurrent_requests * (result.num_input_tokens if prefill else result.num_output_tokens)
+                x_cpu.append(result.num_concurrent_requests)
+                y_cpu.append(emissions_obj.cpu_power)
+                x_gpu.append(result.num_concurrent_requests)
+                y_gpu.append(emissions_obj.gpu_power)
+                x_ram.append(result.num_concurrent_requests)
+                y_ram.append(emissions_obj.ram_power)
+
+            x_cpu, mean_cpu, std_cpu = format_multisample_data(x_cpu, y_cpu)
+            x_gpu, mean_gpu, std_gpu = format_multisample_data(x_gpu, y_gpu)
+            x_ram, mean_ram, std_ram = format_multisample_data(x_ram, y_ram)
+
+            color = next(color_cycle)
+            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color)
+            plt.fill_between(x_cpu, mean_cpu - std_cpu, mean_cpu + std_cpu, alpha=0.2, color=color)
+            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color)
+            plt.fill_between(x_gpu, mean_gpu - std_gpu, mean_gpu + std_gpu, alpha=0.2, color=color)
+            plt.plot(x_ram, mean_ram, linestyle='solid', color=color)
+            plt.fill_between(x_ram, mean_ram - std_ram, mean_ram + std_ram, alpha=0.2, color=color)
+
+        # Plot
+        plt.plot([], [], color="grey", label='CPU', linestyle='dashed')
+        plt.plot([], [], color="grey", label='GPU', linestyle='dotted')
+        plt.plot([], [], color="grey", label='RAM', linestyle='solid')
+        plt.title(
+            f"Average Wattage for {'Prefill' if prefill else 'Decode'} Requests\n" \
+            f"CPU using {metadata['environment']['TORCH_CPU_AVX']}: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ''}" + "\n" \
+            f"Input Tokens: {token_num if prefill else 1}, Output Tokens: {1 if prefill else token_num}" \
+            f"{f', (best) OMP Thread Binds: {best_omp_thread_binds}' if run_on_cpu else ''}"
+        )
+        plt.ylabel('Average Wattage (watts)')
+        plt.xlabel('Number of (Concurrent) Requests')
+        plt.ylim(bottom=0)
+        plt.grid(True)
+        plt.legend()
+
+        plt.savefig(f"{output_dir}/hardware_wattage_{'prefill' if prefill else 'decode'}_token-{token_num}_tokens.png", bbox_inches='tight')
+        plt.close()
+
 def plot_hardware_utility(output_dir: str, results: List[RequestData], emissions: Dict[str, EmissionsData], metadata: dict, prefill: bool):
     """
     Plot the utility of hardware components 
@@ -894,6 +982,8 @@ def plot_hardware_utility(output_dir: str, results: List[RequestData], emissions
         plt.savefig(f"{output_dir}/hardware_utility-{'prefill' if prefill else 'decode'}-{token_num}_tokens.png", bbox_inches='tight')
         plt.close()
 
+
+
 if __name__ == "__main__":
     # Load data
     parser = argparse.ArgumentParser()
@@ -951,6 +1041,8 @@ if __name__ == "__main__":
             plot_energy_vs_num_reqs(model_output_dir, model_results, metadata, show_line_eq=False, prefill=False)
             plot_energy_vs_num_reqs(model_output_dir, model_results, metadata, show_line_eq=False, prefill=True)
             if emissions:
+                plot_hardware_wattage(model_output_dir, model_results, emissions, metadata, prefill=False)
+                plot_hardware_wattage(model_output_dir, model_results, emissions, metadata, prefill=True)
                 plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=False)
                 plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=True)
                 plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=False)

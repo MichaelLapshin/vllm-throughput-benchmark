@@ -15,7 +15,7 @@ This project is for benchmarking the throughput of vLLM on variouns systems (inc
     conda env create -f environment_cpu.yaml
     conda activate vllm_throughput_cpu
     conda env config vars set LD_PRELOAD="$CONDA_PREFIX/lib/libtcmalloc.so:$CONDA_PREFIX/lib/libiomp5.so:$LD_PRELOAD" -n vllm_throughput_cpu
-    conda deactivate vllm_throughput_cpu
+    conda deactivate
     conda activate vllm_throughput_cpu
     cd vllm_cpu
     python setup.py install
@@ -27,7 +27,7 @@ This project is for benchmarking the throughput of vLLM on variouns systems (inc
     conda env create -f environment_gpu.yaml
     conda activate vllm_throughput_gpu
     conda env config vars set LD_PRELOAD="$CONDA_PREFIX/lib/libtcmalloc.so:$CONDA_PREFIX/lib/libiomp5.so:$LD_PRELOAD" -n vllm_throughput_gpu
-    conda deactivate vllm_throughput_gpu
+    conda deactivate
     conda activate vllm_throughput_gpu
     cd vllm_gpu
     python setup.py install

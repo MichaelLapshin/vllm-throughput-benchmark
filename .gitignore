@@ -16,6 +16,7 @@ vllm/third_party/
 *.egg
 
 # Benchmarking output dirs
+results*/
 results/
 plots/
 *.out
