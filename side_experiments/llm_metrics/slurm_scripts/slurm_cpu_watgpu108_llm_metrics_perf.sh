@@ -15,7 +15,7 @@
 newgrp perf_users && \
 conda run -n vllm_throughput_cpu python -m side_experiments.llm_metrics.run_profiler \
     --profiler-type perf_profiler \
-    --models JackFram/llama-68m JackFram/llama-160m Qwen/Qwen3-0.6B Qwen/Qwen3-4B huggyllama/llama-7b huggyllama/llama-13b mistralai/Codestral-22B-v0.1 \
+    --models JackFram/llama-68m JackFram/llama-160m huggyllama/llama-7b huggyllama/llama-13b mistralai/Codestral-22B-v0.1 \
     --num-output-tokens 1024 \
     --schedulers NoSpecDecScheduler_Sequential \
     --perf-stat-runs 2 \

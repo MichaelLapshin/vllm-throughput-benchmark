@@ -1,16 +1,16 @@
 #!/bin/bash
-#SBATCH --output=slurm_cpu_watgpu108_32cores.out
+#SBATCH --output=slurm_cpu_watgpu108_64cores.out
 #SBATCH --mem=150G
-#SBATCH --sockets-per-node=1
+#SBATCH --sockets-per-node=2
 #SBATCH --cores-per-socket=32
 #SBATCH --threads-per-core=2
 #SBATCH --time=720
-#SBATCH --gpus=0
+#SBATCH --gpus=8
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-core=1
 #SBATCH --ntasks-per-socket=1
-#SBATCH --cpus-per-task=64
-#SBATCH --mincpus=64
+#SBATCH --cpus-per-task=128
+#SBATCH --mincpus=128
 #SBATCH --nodelist=watgpu108
 conda run -n vllm_throughput_cpu python run.py \
     --num-warmup-runs 1 \

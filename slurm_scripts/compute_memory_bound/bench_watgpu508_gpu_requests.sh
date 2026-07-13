@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --output=slurm_bench_watgpu508_gpu.out
+#SBATCH --output=slurm_bench_watgpu508_gpu_requests.out
 #SBATCH --mem=150G
 #SBATCH --sockets-per-node=1
 #SBATCH --cores-per-socket=8
@@ -17,7 +17,7 @@ conda run -n vllm_throughput_gpu \
     --num-warmup-runs 1 \
     --num-runs 3 \
     --models Qwen/Qwen3-8B \
-    --num-concurrent-requests 1 2 4 8 16 32 64 128 256 512 1024 2048 4096 \
+    --num-concurrent-requests 1 2 4 8 16 32 64 128 256 512 1024 2048 \
     --num-input-tokens 1 \
     --num-output-tokens 1 \
     --cpu-omp-threads-binds None

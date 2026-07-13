@@ -65,6 +65,7 @@ async def benchmark_vllm_instance(
                 enable_prefix_caching=False,
                 max_model_len=max(PARAM_NUM_INPUT_TOKENS) + max(PARAM_NUM_OUTPUT_TOKENS),
                 max_num_seqs=max(PARAM_NUM_CONCURRENT_REQUESTS),
+                enable_chunked_prefill=False,
             )
         )
     except Exception:

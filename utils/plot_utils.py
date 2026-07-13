@@ -147,8 +147,11 @@ def keep_per_request_batch(
             best[key] = item
     return list(best.values())
 
-def get_colour_cycle():
-    return itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])
+def get_colour_cycle(n=24):
+    cmap = plt.get_cmap('hsv') 
+    colors = cmap(np.linspace(0, 1, n))
+    return itertools.cycle(colors)
+    # return itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])
 
 def plot_fitted_line(color, x, y) -> str:
     """

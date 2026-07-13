@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --output=slurm_bench_watgpu508_gpu.out
+#SBATCH --output=slurm_bench_watgpu508_gpu_output.out
 #SBATCH --mem=150G
 #SBATCH --sockets-per-node=1
 #SBATCH --cores-per-socket=8

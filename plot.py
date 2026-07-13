@@ -793,14 +793,14 @@ def plot_hardware_energy(output_dir: str, results: List[RequestData], emissions:
             x_gpu, mean_gpu, std_gpu = format_multisample_data(x_gpu, y_gpu)
 
             color = next(color_cycle)
-            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color)
+            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color, marker="o")
             plt.fill_between(x_cpu, mean_cpu - std_cpu, mean_cpu + std_cpu, alpha=0.2, color=color)
-            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color)
+            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color, marker="^")
             plt.fill_between(x_gpu, mean_gpu - std_gpu, mean_gpu + std_gpu, alpha=0.2, color=color)
 
         # Plot
-        plt.plot([], [], color="grey", label='CPU', linestyle='dashed')
-        plt.plot([], [], color="grey", label='GPU', linestyle='dotted')
+        plt.plot([], [], color="grey", label='CPU', linestyle='dashed', marker="o")
+        plt.plot([], [], color="grey", label='GPU', linestyle='dotted', marker="^")
         plt.title(
             f"Joules Per {'Prefill' if prefill else 'Decode'} Token Per Hardware\n" \
             f"CPU using {metadata['environment']['TORCH_CPU_AVX']}: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ''}" + "\n" \
@@ -878,17 +878,17 @@ def plot_hardware_wattage(output_dir: str, results: List[RequestData], emissions
             x_ram, mean_ram, std_ram = format_multisample_data(x_ram, y_ram)
 
             color = next(color_cycle)
-            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color)
+            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color, marker="o")
             plt.fill_between(x_cpu, mean_cpu - std_cpu, mean_cpu + std_cpu, alpha=0.2, color=color)
-            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color)
+            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color, marker="^")
             plt.fill_between(x_gpu, mean_gpu - std_gpu, mean_gpu + std_gpu, alpha=0.2, color=color)
-            plt.plot(x_ram, mean_ram, linestyle='solid', color=color)
+            plt.plot(x_ram, mean_ram, linestyle='solid', color=color, marker="*")
             plt.fill_between(x_ram, mean_ram - std_ram, mean_ram + std_ram, alpha=0.2, color=color)
 
         # Plot
-        plt.plot([], [], color="grey", label='CPU', linestyle='dashed')
-        plt.plot([], [], color="grey", label='GPU', linestyle='dotted')
-        plt.plot([], [], color="grey", label='RAM', linestyle='solid')
+        plt.plot([], [], color="grey", label='CPU', linestyle='dashed', marker="o")
+        plt.plot([], [], color="grey", label='GPU', linestyle='dotted', marker="^")
+        plt.plot([], [], color="grey", label='RAM', linestyle='solid', marker="*")
         plt.title(
             f"Average Wattage for {'Prefill' if prefill else 'Decode'} Requests\n" \
             f"CPU using {metadata['environment']['TORCH_CPU_AVX']}: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ''}" + "\n" \
@@ -959,14 +959,14 @@ def plot_hardware_utility(output_dir: str, results: List[RequestData], emissions
             x_gpu, mean_gpu, std_gpu = format_multisample_data(x_gpu, y_gpu)
 
             color = next(color_cycle)
-            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color)
+            plt.plot(x_cpu, mean_cpu, linestyle='dashed', color=color, marker="o")
             plt.fill_between(x_cpu, mean_cpu - std_cpu, mean_cpu + std_cpu, alpha=0.2, color=color)
-            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color)
+            plt.plot(x_gpu, mean_gpu, linestyle='dotted', color=color, marker="^")
             plt.fill_between(x_gpu, mean_gpu - std_gpu, mean_gpu + std_gpu, alpha=0.2, color=color)
 
         # Plot
-        plt.plot([], [], color="grey", label='CPU', linestyle='dashed')
-        plt.plot([], [], color="grey", label='GPU', linestyle='dotted')
+        plt.plot([], [], color="grey", label='CPU', linestyle='dashed', marker="o")
+        plt.plot([], [], color="grey", label='GPU', linestyle='dotted', marker="^")
         plt.title(
             f"Percentage Utilization for {'Prefill' if prefill else 'Decode'} Requests Per Hardware\n" \
             f"CPU using {metadata['environment']['TORCH_CPU_AVX']}: {cpu_name}" + f"{', GPU: ' + gpu_name if not run_on_cpu else ''}" + "\n" \

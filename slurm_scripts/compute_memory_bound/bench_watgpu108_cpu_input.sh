@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --output=slurm_watgpu108_cpu_32cores.out
+#SBATCH --output=slurm_watgpu108_cpu_input.out
 #SBATCH --mem=100G
 #SBATCH --sockets-per-node=1
 #SBATCH --cores-per-socket=32
