@@ -15,11 +15,8 @@ from utils import metadata_util
 
 MARKERS = ['*', '^', 'P', 's', 'v', 'p', 'D', 'X']
 
-def load_metadata(results_name: str) -> dict:
-    return metadata_util.load_metadata(f"{RESULTS_DIR}/{results_name}")
-
-def load_csv_emissions(results_name: str) -> Dict[str, EmissionsData]:
-    file_path = f"{RESULTS_DIR}/{results_name}/emissions.csv"
+def load_csv_emissions(results_dir: str) -> Dict[str, EmissionsData]:
+    file_path = f"{results_dir}/emissions.csv"
     if not os.path.isfile(file_path):
         return {}
 
@@ -44,9 +41,9 @@ def load_csv_emissions(results_name: str) -> Dict[str, EmissionsData]:
             emissions[emissions_obj.experiment_id] = emissions_obj
     return emissions
 
-def load_csv_data(results_name: str) -> List[RequestData]:
+def load_csv_data(results_dir: str) -> List[RequestData]:
     results: List[RequestData] = []
-    with open(f"{RESULTS_DIR}/{results_name}/data.csv", newline='', encoding='utf-8') as file:
+    with open(f"{results_dir}/data.csv", newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
             for key in row:

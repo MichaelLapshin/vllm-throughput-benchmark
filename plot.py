@@ -4,18 +4,22 @@ from collections import defaultdict
 import argparse
 import os
 import itertools
+import csv
+import sys
 
 from results import RequestData, EmissionsData
 import pandas as pd
 import numpy as np
 
 from run_constants import RESULTS_DIR, PLOTS_DIR
-from utils import plot_utils
+from utils import plot_utils, metadata_util
 from utils.plot_utils import (
     MARKERS, group_and_find_best_records, keep_per_request_batch,
     plot_fitted_line, get_poly_colour_no_alpha, get_colour_cycle,
     format_multisample_data
 )
+
+csv.field_size_limit(sys.maxsize)
 
 def plot_cpu_omp_threads_binds_prefill_throughput(output_dir: str, results: List[RequestData], metadata: dict):
     """
@@ -987,37 +991,37 @@ def plot_hardware_utility(output_dir: str, results: List[RequestData], emissions
 if __name__ == "__main__":
     # Load data
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--name', type=str, default=None, help='Results directory name.')
+    parser.add_argument('-r', '--results-path', type=str, default=None, help='Path to a specific results directory.')
     parser.add_argument('-a', '--all', action='store_true', help='Plot for all result directories.')
     args = parser.parse_args()
 
-    if args.name is None:
-        # Get latest directory in RESULTS_DIR
-        results_dirs = [d for d in os.listdir(RESULTS_DIR) if os.path.isdir(os.path.join(RESULTS_DIR, d))]
-        args.name = max(results_dirs, key=lambda d: os.path.getctime(os.path.join(RESULTS_DIR, d)))
-
-    if args.all:
-        results_dir_names = [d for d in os.listdir(RESULTS_DIR) if os.path.isdir(os.path.join(RESULTS_DIR, d))]
+    if args.results_path is None:
+        results_dir_names = [args.results_path]
+    elif 
+        os.path.isdir(RESULTS_DIR):
+        if args.all:
+            results_dir_names = [d for d in os.listdir(RESULTS_DIR) if os.path.isdir(os.path.join(RESULTS_DIR, d))]
     else:
-        results_dir_names = [args.name]
+        print("Error: No results directory specified via -r or found in RESULTS_DIR.")
+        exit(1)
 
-    for results_name in results_dir_names:
-        print(f"Plotting results: '{results_name}'")
+    for results_dir in results_dirs:
+        print(f"Plotting results: '{results_dir}'")
         try:
-            results = plot_utils.load_csv_data(results_name)
-            metadata = plot_utils.load_metadata(results_name)
-            emissions = plot_utils.load_csv_emissions(results_name)
+            results = plot_utils.load_csv_data(results_dir)
+            metadata = metadata_util.load_metadata(results_dir)
+            emissions = plot_utils.load_csv_emissions(results_dir)
         except FileNotFoundError:
             print(f"File not found. Skipping...")
             continue
         
         # General plots (involving all models)
-        output_dir = f"{PLOTS_DIR}/{results_name}"
-        os.makedirs(output_dir, exist_ok=True)
-        plot_model_num_requests_vs_throughput(output_dir, results, metadata, prefill=False)
-        plot_model_num_requests_vs_throughput(output_dir, results, metadata, prefill=True)
-        plot_model_vs_throughput(output_dir, results, metadata, prefill=False)
-        plot_model_vs_throughput(output_dir, results, metadata, prefill=True)
+        plots_dir = f"{results_dir}"
+        os.makedirs(plots_dir, exist_ok=True)
+        plot_model_num_requests_vs_throughput(plots_dir, results, metadata, prefill=False)
+        plot_model_num_requests_vs_throughput(plots_dir, results, metadata, prefill=True)
+        plot_model_vs_throughput(plots_dir, results, metadata, prefill=False)
+        plot_model_vs_throughput(plots_dir, results, metadata, prefill=True)
 
         # Group by model name
         model_groups = defaultdict(list)
@@ -1025,25 +1029,25 @@ if __name__ == "__main__":
             model_groups[result.model].append(result)
 
         for model, model_results in model_groups.items():
-            model_output_dir = f"{output_dir}/{model}"
-            os.makedirs(model_output_dir, exist_ok=True)
-            plot_cpu_omp_threads_binds_prefill_throughput(model_output_dir, model_results, metadata)
-            plot_cpu_omp_threads_binds_decode_throughput(model_output_dir, model_results, metadata)
-            plot_prefill_throughput(model_output_dir, model_results, metadata, prefill_only=True, per_request=False)
-            plot_prefill_throughput(model_output_dir, model_results, metadata, prefill_only=False, per_request=False)
-            plot_prefill_throughput(model_output_dir, model_results, metadata, prefill_only=True, per_request=True)
-            plot_prefill_throughput(model_output_dir, model_results, metadata, prefill_only=False, per_request=True)
-            plot_decode_throughput(model_output_dir, model_results, metadata, per_request=True)
-            plot_decode_throughput(model_output_dir, model_results, metadata, per_request=False)
-            plot_tbot(model_output_dir, model_results, metadata)
-            plot_tbot_vs_num_requests(model_output_dir, model_results, metadata)
-            plot_histogram_of_samples_times(model_output_dir, model_results, metadata)
-            plot_energy_vs_num_reqs(model_output_dir, model_results, metadata, show_line_eq=False, prefill=False)
-            plot_energy_vs_num_reqs(model_output_dir, model_results, metadata, show_line_eq=False, prefill=True)
+            model_plots_dir = f"{output_dir}/{model}"
+            os.makedirs(model_plots_dir, exist_ok=True)
+            plot_cpu_omp_threads_binds_prefill_throughput(model_plots_dir, model_results, metadata)
+            plot_cpu_omp_threads_binds_decode_throughput(model_plots_dir, model_results, metadata)
+            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=True, per_request=False)
+            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=False, per_request=False)
+            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=True, per_request=True)
+            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=False, per_request=True)
+            plot_decode_throughput(model_plots_dir, model_results, metadata, per_request=True)
+            plot_decode_throughput(model_plots_dir, model_results, metadata, per_request=False)
+            plot_tbot(model_plots_dir, model_results, metadata)
+            plot_tbot_vs_num_requests(model_plots_dir, model_results, metadata)
+            plot_histogram_of_samples_times(model_plots_dir, model_results, metadata)
+            plot_energy_vs_num_reqs(model_plots_dir, model_results, metadata, show_line_eq=False, prefill=False)
+            plot_energy_vs_num_reqs(model_plots_dir, model_results, metadata, show_line_eq=False, prefill=True)
             if emissions:
-                plot_hardware_wattage(model_output_dir, model_results, emissions, metadata, prefill=False)
-                plot_hardware_wattage(model_output_dir, model_results, emissions, metadata, prefill=True)
-                plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=False)
-                plot_hardware_energy(model_output_dir, model_results, emissions, metadata, prefill=True)
-                plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=False)
-                plot_hardware_utility(model_output_dir, model_results, emissions, metadata, prefill=True)
+                plot_hardware_wattage(model_plots_dir, model_results, emissions, metadata, prefill=False)
+                plot_hardware_wattage(model_plots_dir, model_results, emissions, metadata, prefill=True)
+                plot_hardware_energy(model_plots_dir, model_results, emissions, metadata, prefill=False)
+                plot_hardware_energy(model_plots_dir, model_results, emissions, metadata, prefill=True)
+                plot_hardware_utility(model_plots_dir, model_results, emissions, metadata, prefill=False)
+                plot_hardware_utility(model_plots_dir, model_results, emissions, metadata, prefill=True)
