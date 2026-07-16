@@ -55,6 +55,11 @@ def plot_frequency_comparison(output_dir, metadata, results, emissions):
             metric_fn=lambda _: 1,
             emissions_metric_func=lambda _, e: e.cpu_power,
         ),
+        FrequencyPlot(
+            y_label_short="Prefill Time",
+            y_label="Prefill Time (seconds)",
+            metric_fn=lambda r: r.time_to_token_s[0],
+        ),
     ]
 
     for p in plots:
