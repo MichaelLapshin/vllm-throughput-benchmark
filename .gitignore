@@ -20,6 +20,7 @@ results*/
 results/
 plots/
 plot_comparisons/
+plot_frequency_comparison/
 *.out
 emissions.csv
 data.csv

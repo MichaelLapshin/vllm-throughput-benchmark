@@ -28,7 +28,8 @@ from run_parameters import (
     PARAM_NUM_CONCURRENT_REQUESTS,
     PARAM_NUM_INPUT_TOKENS, PARAM_NUM_OUTPUT_TOKENS,
     PARAM_MAX_SAMPLE_TOKENS,
-    PARAM_CPU_OMP_THREADS_BINDS
+    PARAM_CPU_OMP_THREADS_BINDS,
+    PARAM_CPU_FREQUENCY_KHZ,
 )
 import run_constants
 from run_constants import (
@@ -68,135 +69,143 @@ async def benchmark_vllm_instance(
                 enable_chunked_prefill=False,
             )
         )
-    except Exception:
+    except Exception as e:
+        print(f"Exception: {e}")
         print(f"WARNING: Failed to launch model `{model}` on {CPU_NAME if RUN_ON_CPU else GPU_NAME}")
         return
 
-    for run_i in range(PARAM_NUM_WARMUP_RUNS + PARAM_NUM_RUNS):
-        print(f"=== Run {run_i + 1}/{PARAM_NUM_WARMUP_RUNS + PARAM_NUM_RUNS} ===")
-        is_warmup_run = (run_i < PARAM_NUM_WARMUP_RUNS)
-        for num_requests in PARAM_NUM_CONCURRENT_REQUESTS:
-            print(f"Running {num_requests} requests")
-            for num_input_tokens in PARAM_NUM_INPUT_TOKENS:
-                print(f"Running with {num_input_tokens} input tokens")
+    for cpu_frequency_khz in PARAM_CPU_FREQUENCY_KHZ:
+        hardware_util.set_cpu_max_frequency(cpu_frequency_khz)
+        await asyncio.sleep(0.5)
 
-                # Create unique prompts for local test
-                prompt_token_ids_list = []
-                for _ in range(num_requests):
-                    prompt_token_ids_list.append(
-                        [i+1 for i in range(num_input_tokens)]
-                    )
+        for run_i in range(PARAM_NUM_WARMUP_RUNS + PARAM_NUM_RUNS):
+            print(f"=== Run {run_i + 1}/{PARAM_NUM_WARMUP_RUNS + PARAM_NUM_RUNS} ===")
+            is_warmup_run = (run_i < PARAM_NUM_WARMUP_RUNS)
+            for num_requests in PARAM_NUM_CONCURRENT_REQUESTS:
+                print(f"Running {num_requests} requests")
+                for num_input_tokens in PARAM_NUM_INPUT_TOKENS:
+                    print(f"Running with {num_input_tokens} input tokens")
 
-                # Execute generation
-                for num_output_tokens in PARAM_NUM_OUTPUT_TOKENS:
-                    num_sample_tokens = num_requests * (num_input_tokens + num_output_tokens)
-                    if (PARAM_MAX_SAMPLE_TOKENS > 0 and num_sample_tokens > PARAM_MAX_SAMPLE_TOKENS):
-                        print(f"Skipping sample its tokens ({num_sample_tokens}) exceeed max {PARAM_MAX_SAMPLE_TOKENS}.")
-                        continue
-
-                    sampling_params = SamplingParams(
-                        temperature=VLLM_SAMPLING_TEMPERATURE,
-                        min_tokens=num_output_tokens,
-                        max_tokens=num_output_tokens,
-                    )
-
-                    async def run_request(req_id: str, prompt_token_ids: List[int]):
-                        start_time = time.perf_counter()
-                        time_to_token_s = []
-                        final_output = None
-                        async for output in engine.generate(
-                                TokensPrompt(prompt_token_ids=prompt_token_ids),
-                                sampling_params, 
-                                request_id=req_id
-                            ):
-                            this_token_time = time.perf_counter()
-                            time_to_token_s.append(this_token_time - start_time)
-                            final_output = output
-                        
-                        # extract metrics
-                        assert final_output.metrics is not None
-                        assert num_output_tokens == final_output.metrics.num_generation_tokens
-                        return (
-                            final_output.metrics.queued_ts,
-                            final_output.metrics.scheduled_ts, 
-                            final_output.metrics.first_token_ts,
-                            final_output.metrics.last_token_ts,
-                            time_to_token_s
-                        )               
-
-                    async def run_request_batch(batch_size):
-                        print(f"Running {batch_size} requests with {num_output_tokens} output tokens...")
-                        set_batch_count(batch_size)
-
-                        tasks = []
-                        for i in range(batch_size):
-                            tasks.append(asyncio.create_task(
-                                run_request(f"req_id-{i}", prompt_token_ids_list[i])
-                            ))
-                        results = await asyncio.gather(*tasks)
-                        return results
-
-                    # Run batch of requests
-                    request_batch_uid = str(datetime.now(ZoneInfo('America/New_York')))
-                    gc.collect()
-
-                    cpu_temp_before_run = hardware_util.get_cpu_cores_avg_temp()
-                    gpu_temp_before_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
-                    tracker = None
-                    if not is_warmup_run:
-                        tracker = OfflineEmissionsTracker(
-                            experiment_id=request_batch_uid,
-                            measure_power_secs=1,
-                            output_dir=results_dir,
-                            gpu_ids=[GPU_RUN_NUMBER] if not RUN_ON_CPU else [],
-                            log_level="warning",
-                            allow_multiple_runs=True,
+                    # Create unique prompts for local test
+                    prompt_token_ids_list = []
+                    for _ in range(num_requests):
+                        prompt_token_ids_list.append(
+                            [i+1 for i in range(num_input_tokens)]
                         )
-                        tracker.start()
-                    time_start_s = time.time()
 
-                    results = await run_request_batch(num_requests)
-                    
-                    time_end_s = time.time()
-                    if tracker is not None:
-                        tracker.stop()
-                    try:
-                        request_batch_energy_joules = energy_util.get_energy_joules(time_start_s, time_end_s)
-                    except Exception:
-                        request_batch_energy_joules = -1 # dummy value
-                    cpu_temp_after_run = hardware_util.get_cpu_cores_avg_temp()
-                    gpu_temp_after_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
+                    # Execute generation
+                    for num_output_tokens in PARAM_NUM_OUTPUT_TOKENS:
+                        num_sample_tokens = num_requests * (num_input_tokens + num_output_tokens)
+                        if (PARAM_MAX_SAMPLE_TOKENS > 0 and num_sample_tokens > PARAM_MAX_SAMPLE_TOKENS):
+                            print(f"Skipping sample its tokens ({num_sample_tokens}) exceeed max {PARAM_MAX_SAMPLE_TOKENS}.")
+                            continue
 
-                    # Save results to file
-                    results_to_save = []
-                    for queued_ts, scheduled_ts, first_token_ts, last_token_ts, time_to_token_s in results:
+                        sampling_params = SamplingParams(
+                            temperature=VLLM_SAMPLING_TEMPERATURE,
+                            min_tokens=num_output_tokens,
+                            max_tokens=num_output_tokens,
+                        )
+
+                        async def run_request(req_id: str, prompt_token_ids: List[int]):
+                            start_time = time.perf_counter()
+                            time_to_token_s = []
+                            final_output = None
+                            async for output in engine.generate(
+                                    TokensPrompt(prompt_token_ids=prompt_token_ids),
+                                    sampling_params, 
+                                    request_id=req_id
+                                ):
+                                this_token_time = time.perf_counter()
+                                time_to_token_s.append(this_token_time - start_time)
+                                final_output = output
+                            
+                            # extract metrics
+                            assert final_output.metrics is not None
+                            assert num_output_tokens == final_output.metrics.num_generation_tokens
+                            return (
+                                final_output.metrics.queued_ts,
+                                final_output.metrics.scheduled_ts, 
+                                final_output.metrics.first_token_ts,
+                                final_output.metrics.last_token_ts,
+                                time_to_token_s
+                            )               
+
+                        async def run_request_batch(batch_size):
+                            print(f"Running {batch_size} requests with {num_output_tokens} output tokens...")
+                            set_batch_count(batch_size)
+
+                            tasks = []
+                            for i in range(batch_size):
+                                tasks.append(asyncio.create_task(
+                                    run_request(f"req_id-{i}", prompt_token_ids_list[i])
+                                ))
+                            results = await asyncio.gather(*tasks)
+                            return results
+
+                        # Run batch of requests
+                        request_batch_uid = str(datetime.now(ZoneInfo('America/New_York')))
+                        gc.collect()
+
+                        cpu_temp_before_run = hardware_util.get_cpu_cores_avg_temp()
+                        gpu_temp_before_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
+                        tracker = None
                         if not is_warmup_run:
-                            results_to_save.append(RequestData(
-                                request_batch_uid=request_batch_uid,
-                                model=model,
-                                cpu_omp_threads_bind=cpu_omp_threads_bind if cpu_omp_threads_bind is not None else "<no bind>",
-                                num_warmup_runs=PARAM_NUM_WARMUP_RUNS,
-                                num_runs=PARAM_NUM_RUNS,
-                                run_num=run_i - PARAM_NUM_WARMUP_RUNS,
-                                num_concurrent_requests=num_requests,
-                                num_input_tokens=num_input_tokens,
-                                num_output_tokens=num_output_tokens,
-                                # State
-                                cpu_temp_before_run=cpu_temp_before_run,
-                                cpu_temp_after_run=cpu_temp_after_run,
-                                gpu_temp_before_run=gpu_temp_before_run,
-                                gpu_temp_after_run=gpu_temp_after_run,
-                                # Metrics
-                                queued_ts=queued_ts,
-                                scheduled_ts=scheduled_ts,
-                                first_token_ts=first_token_ts,
-                                last_token_ts=last_token_ts,
-                                # Output
-                                time_to_token_s=time_to_token_s,
-                                request_batch_energy_joules=request_batch_energy_joules,
-                            ))
-                    for result in results_to_save:
-                        save_results_func(result)
+                            tracker = OfflineEmissionsTracker(
+                                experiment_id=request_batch_uid,
+                                measure_power_secs=1,
+                                output_dir=results_dir,
+                                gpu_ids=[GPU_RUN_NUMBER] if not RUN_ON_CPU else [],
+                                log_level="warning",
+                                allow_multiple_runs=True,
+                            )
+                            tracker.start()
+                        time_start_s = time.time()
+
+                        results = await run_request_batch(num_requests)
+                        
+                        time_end_s = time.time()
+                        if tracker is not None:
+                            tracker.stop()
+                        try:
+                            request_batch_energy_joules = energy_util.get_energy_joules(time_start_s, time_end_s)
+                        except Exception:
+                            request_batch_energy_joules = -1 # dummy value
+                        cpu_temp_after_run = hardware_util.get_cpu_cores_avg_temp()
+                        gpu_temp_after_run = hardware_util.get_gpu_temp(GPU_RUN_NUMBER) if not RUN_ON_CPU else -1
+
+                        # Save results to file
+                        results_to_save = []
+                        for queued_ts, scheduled_ts, first_token_ts, last_token_ts, time_to_token_s in results:
+                            if not is_warmup_run:
+                                results_to_save.append(RequestData(
+                                    request_batch_uid=request_batch_uid,
+                                    model=model,
+                                    cpu_omp_threads_bind=cpu_omp_threads_bind if cpu_omp_threads_bind is not None else "<no bind>",
+                                    cpu_frequency_khz=cpu_frequency_khz if cpu_frequency_khz is not None else "<no change>",
+                                    num_warmup_runs=PARAM_NUM_WARMUP_RUNS,
+                                    num_runs=PARAM_NUM_RUNS,
+                                    run_num=run_i - PARAM_NUM_WARMUP_RUNS,
+                                    num_concurrent_requests=num_requests,
+                                    num_input_tokens=num_input_tokens,
+                                    num_output_tokens=num_output_tokens,
+                                    # State
+                                    cpu_temp_before_run=cpu_temp_before_run,
+                                    cpu_temp_after_run=cpu_temp_after_run,
+                                    gpu_temp_before_run=gpu_temp_before_run,
+                                    gpu_temp_after_run=gpu_temp_after_run,
+                                    # Metrics
+                                    queued_ts=queued_ts,
+                                    scheduled_ts=scheduled_ts,
+                                    first_token_ts=first_token_ts,
+                                    last_token_ts=last_token_ts,
+                                    # Output
+                                    time_to_token_s=time_to_token_s,
+                                    request_batch_energy_joules=request_batch_energy_joules,
+                                ))
+                        for result in results_to_save:
+                            save_results_func(result)
+
+    hardware_util.set_cpu_max_frequency() # reset frequency to default 
 
     # Give time for the program to gracefully shutdown
     print("Done. Shutting down...")

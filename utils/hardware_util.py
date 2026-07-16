@@ -4,6 +4,8 @@ import psutil
 import pynvml
 from typing import List
 import time
+import os
+import glob
 
 _nvml_initialized = False
 _gpu_count = None
@@ -87,3 +89,41 @@ def can_read_intel_rapl_energy() -> bool:
         return True
     except Exception:
         return False
+
+def set_cpu_max_frequency(khz: int = 0):
+    # Find all active CPU policy directories
+    policies = glob.glob("/sys/devices/system/cpu/cpu*/cpufreq")
+
+    if not policies:
+        print("Error: CPU frequency scaling interface not found.")
+        return
+
+    for policy in policies:
+        max_path = os.path.join(policy, "scaling_max_freq")
+
+        # Read frequency boundaries
+        cpuinfo_min_freq_path = os.path.join(policy, "cpuinfo_min_freq")
+        with open(cpuinfo_min_freq_path, "r") as f:
+            cpuinfo_min_freq = int(f.readline())
+
+        cpuinfo_max_freq_path = os.path.join(policy, "cpuinfo_max_freq")
+        with open(cpuinfo_max_freq_path, "r") as f:
+            cpuinfo_max_freq = int(f.readline())
+        
+        assert cpuinfo_min_freq <= khz <= cpuinfo_max_freq
+
+        # Set target frequency
+        target_khz = cpuinfo_max_freq if khz == 0 else str(khz)
+
+        with open(max_path, "r") as f:
+            if int(f.readline()) == target_khz:
+                continue # don't change frequency is already set to target
+
+        # Set and verify the CPU's frequency
+        with open(max_path, "w") as f:
+            f.write(str(target_khz))
+        
+        with open(max_path, "r") as f:
+            assert int(f.readline()) == target_khz
+    
+    print(f"Successfully updated all CPU ranges to max {khz / 1000:.1f} MHz")

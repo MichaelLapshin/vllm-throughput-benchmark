@@ -54,6 +54,12 @@ parser.add_argument(
     help="Variants of OMP threads binds to benchmark. Used only for CPU benchmarking."
 )
 parser.add_argument(
+    "--cpu-frequency-khz",
+    nargs="+", type=int,
+    default=[0],
+    help="Set the frequency of the CPU. Frequency '0' implies default frequency."
+)
+parser.add_argument(
     "--max-sample-tokens",
     type=int,
     default=0,
@@ -76,3 +82,4 @@ PARAM_MAX_SAMPLE_TOKENS = args.max_sample_tokens
 
 # Hardware (this likely needs changing)
 PARAM_CPU_OMP_THREADS_BINDS = args.cpu_omp_threads_binds
+PARAM_CPU_FREQUENCY_KHZ = args.cpu_frequency_khz

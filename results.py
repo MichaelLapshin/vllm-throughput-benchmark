@@ -7,6 +7,7 @@ class RequestData:
     request_batch_uid: str
     model: str
     cpu_omp_threads_bind: str
+    cpu_frequency_khz: int
     num_warmup_runs: int
     num_runs: int
     run_num: int
