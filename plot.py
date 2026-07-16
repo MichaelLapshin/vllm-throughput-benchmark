@@ -992,62 +992,50 @@ if __name__ == "__main__":
     # Load data
     parser = argparse.ArgumentParser()
     parser.add_argument('-r', '--results-path', type=str, default=None, help='Path to a specific results directory.')
-    parser.add_argument('-a', '--all', action='store_true', help='Plot for all result directories.')
     args = parser.parse_args()
 
-    if args.results_path is None:
-        results_dir_names = [args.results_path]
-    elif 
-        os.path.isdir(RESULTS_DIR):
-        if args.all:
-            results_dir_names = [d for d in os.listdir(RESULTS_DIR) if os.path.isdir(os.path.join(RESULTS_DIR, d))]
-    else:
-        print("Error: No results directory specified via -r or found in RESULTS_DIR.")
+    print(f"Plotting results: '{args.results_path}'")
+    try:
+        results = plot_utils.load_csv_data(args.results_path)
+        metadata = metadata_util.load_metadata(args.results_path)
+        emissions = plot_utils.load_csv_emissions(args.results_path)
+    except FileNotFoundError:
+        print(f"File not found.")
         exit(1)
+    
+    # General plots (involving all models)
+    plots_dir = f"{args.results_path}"
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_model_num_requests_vs_throughput(plots_dir, results, metadata, prefill=False)
+    plot_model_num_requests_vs_throughput(plots_dir, results, metadata, prefill=True)
+    plot_model_vs_throughput(plots_dir, results, metadata, prefill=False)
+    plot_model_vs_throughput(plots_dir, results, metadata, prefill=True)
 
-    for results_dir in results_dirs:
-        print(f"Plotting results: '{results_dir}'")
-        try:
-            results = plot_utils.load_csv_data(results_dir)
-            metadata = metadata_util.load_metadata(results_dir)
-            emissions = plot_utils.load_csv_emissions(results_dir)
-        except FileNotFoundError:
-            print(f"File not found. Skipping...")
-            continue
-        
-        # General plots (involving all models)
-        plots_dir = f"{results_dir}"
-        os.makedirs(plots_dir, exist_ok=True)
-        plot_model_num_requests_vs_throughput(plots_dir, results, metadata, prefill=False)
-        plot_model_num_requests_vs_throughput(plots_dir, results, metadata, prefill=True)
-        plot_model_vs_throughput(plots_dir, results, metadata, prefill=False)
-        plot_model_vs_throughput(plots_dir, results, metadata, prefill=True)
+    # Group by model name
+    model_groups = defaultdict(list)
+    for result in results:
+        model_groups[result.model].append(result)
 
-        # Group by model name
-        model_groups = defaultdict(list)
-        for result in results:
-            model_groups[result.model].append(result)
-
-        for model, model_results in model_groups.items():
-            model_plots_dir = f"{output_dir}/{model}"
-            os.makedirs(model_plots_dir, exist_ok=True)
-            plot_cpu_omp_threads_binds_prefill_throughput(model_plots_dir, model_results, metadata)
-            plot_cpu_omp_threads_binds_decode_throughput(model_plots_dir, model_results, metadata)
-            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=True, per_request=False)
-            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=False, per_request=False)
-            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=True, per_request=True)
-            plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=False, per_request=True)
-            plot_decode_throughput(model_plots_dir, model_results, metadata, per_request=True)
-            plot_decode_throughput(model_plots_dir, model_results, metadata, per_request=False)
-            plot_tbot(model_plots_dir, model_results, metadata)
-            plot_tbot_vs_num_requests(model_plots_dir, model_results, metadata)
-            plot_histogram_of_samples_times(model_plots_dir, model_results, metadata)
-            plot_energy_vs_num_reqs(model_plots_dir, model_results, metadata, show_line_eq=False, prefill=False)
-            plot_energy_vs_num_reqs(model_plots_dir, model_results, metadata, show_line_eq=False, prefill=True)
-            if emissions:
-                plot_hardware_wattage(model_plots_dir, model_results, emissions, metadata, prefill=False)
-                plot_hardware_wattage(model_plots_dir, model_results, emissions, metadata, prefill=True)
-                plot_hardware_energy(model_plots_dir, model_results, emissions, metadata, prefill=False)
-                plot_hardware_energy(model_plots_dir, model_results, emissions, metadata, prefill=True)
-                plot_hardware_utility(model_plots_dir, model_results, emissions, metadata, prefill=False)
-                plot_hardware_utility(model_plots_dir, model_results, emissions, metadata, prefill=True)
+    for model, model_results in model_groups.items():
+        model_plots_dir = f"{plots_dir}/{model}"
+        os.makedirs(model_plots_dir, exist_ok=True)
+        plot_cpu_omp_threads_binds_prefill_throughput(model_plots_dir, model_results, metadata)
+        plot_cpu_omp_threads_binds_decode_throughput(model_plots_dir, model_results, metadata)
+        plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=True, per_request=False)
+        plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=False, per_request=False)
+        plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=True, per_request=True)
+        plot_prefill_throughput(model_plots_dir, model_results, metadata, prefill_only=False, per_request=True)
+        plot_decode_throughput(model_plots_dir, model_results, metadata, per_request=True)
+        plot_decode_throughput(model_plots_dir, model_results, metadata, per_request=False)
+        plot_tbot(model_plots_dir, model_results, metadata)
+        plot_tbot_vs_num_requests(model_plots_dir, model_results, metadata)
+        plot_histogram_of_samples_times(model_plots_dir, model_results, metadata)
+        plot_energy_vs_num_reqs(model_plots_dir, model_results, metadata, show_line_eq=False, prefill=False)
+        plot_energy_vs_num_reqs(model_plots_dir, model_results, metadata, show_line_eq=False, prefill=True)
+        if emissions:
+            plot_hardware_wattage(model_plots_dir, model_results, emissions, metadata, prefill=False)
+            plot_hardware_wattage(model_plots_dir, model_results, emissions, metadata, prefill=True)
+            plot_hardware_energy(model_plots_dir, model_results, emissions, metadata, prefill=False)
+            plot_hardware_energy(model_plots_dir, model_results, emissions, metadata, prefill=True)
+            plot_hardware_utility(model_plots_dir, model_results, emissions, metadata, prefill=False)
+            plot_hardware_utility(model_plots_dir, model_results, emissions, metadata, prefill=True)

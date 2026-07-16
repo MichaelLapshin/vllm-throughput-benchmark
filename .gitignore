@@ -15,11 +15,15 @@ vllm/third_party/
 *.egg-info
 *.egg
 
-# Benchmarking output dirs
+# Benchmarking output
 results*/
 results/
 plots/
+plot_comparisons/
 *.out
+emissions.csv
+data.csv
+metadata.json
 
 # Side-experiments
 temp_cuda_graph_dump/*
